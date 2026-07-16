@@ -1,0 +1,6 @@
+streamlit
+pandas
+plotly
+google-cloud-bigquery
+google-auth
+gdown
