@@ -351,10 +351,6 @@ df_temp = df_temp.drop(columns=[f'{col}_media' for col in
 
 MAPBIOMAS_VTN_FULL = df_temp.copy()
 
-MAPBIOMAS_VTN_FULL.info()
-
-MAPBIOMAS_VTN_FULL[MAPBIOMAS_VTN_FULL['UF']=='AL']
-
 """# Dataframe PROPRIEDADES"""
 
 def ajustar_formato_numerico_area_total(valor):
@@ -373,7 +369,7 @@ def ajustar_percentual_detencao(valor):
 
 
 def carregar_dados(uf_selecionado):
-    folder_path = '/content/drive/MyDrive/ESTADOS'
+    folder_path = '/content/drive/MyDrive/ESTADOS2'
     file_names = {
         'AC': 'AC.csv', 'AL': 'AL.csv', 'AM': 'AM.csv', 'AP': 'AP.csv', 'BA': 'BA.csv', 'CE': 'CE.csv',
         'DF': 'DF.csv', 'ES': 'ES.csv', 'GO': 'GO.csv', 'MA': 'MA.csv', 'MG': 'MG.csv', 'MS': 'MS.csv',
@@ -436,9 +432,6 @@ PROPRIEDADES = df_final
 # Aplicar filtro para ÁREA TOTAL menor que 2
 # PROPRIEDADES = PROPRIEDADES[PROPRIEDADES["AT MÓVEL"] < 2]
 
-PROPRIEDADES.info()
-PROPRIEDADES.head()
-
 """# Dataframe Final - Cada PROPRIEDADE recebe dados do MAPBIOMAS e VTN de seu MUNICÍPIO"""
 
 # Converter a coluna 'CÓDIGO DO MUNICÍPIO (IBGE)' para int64 no segundo dataframe, usando .loc
@@ -450,17 +443,10 @@ PROPRIEDADES_BIO_VTN = pd.merge(PROPRIEDADES, MAPBIOMAS_VTN_FULL,
                     right_on='Código IBGE',
                     how='inner')
 
-PROPRIEDADES_BIO_VTN.info()
-
 # Eliminando colunas duplicadas
 PROPRIEDADES_BIO_VTN.rename(columns={'UF_x': 'UF'}, inplace=True)
 PROPRIEDADES_BIO_VTN.drop(columns=['UF_y'], inplace=True)
 PROPRIEDADES_BIO_VTN.drop(columns=['MUNICÍPIO'], inplace=True)
-
-estados_presentes = PROPRIEDADES_BIO_VTN['UF'].dropna().unique()
-print(sorted(estados_presentes))
-
-PROPRIEDADES_BIO_VTN.info()
 
 PROPRIEDADES_FINAL=PROPRIEDADES_BIO_VTN.copy()
 
@@ -484,15 +470,8 @@ tabela_area = pd.crosstab(index=PROPRIEDADES_FINAL['UF'],
                           margins=True,
                           margins_name='TOTAL')
 
-print(tabela_area)
-
-#Gravando tabela no DRIVE
-caminho_arquivo = '/content/drive/MyDrive/SAIDAS ITR/PROPRIEDADES/CONTAGEM_Sem Filtro.xlsx'
-tabela_area.to_excel(caminho_arquivo)
-
 # Contar registros onde AT IMÓVEL < 0.5
-contagem = (PROPRIEDADES_FINAL["AT IMÓVEL"] < 0.5).sum()
-print("Quantidade de registros:", contagem)
+tabela1 = (PROPRIEDADES_FINAL["AT IMÓVEL"] < 0.5).sum()
 
 """## EXCLUSÃO DE MUNICÍCIPIOS COM ISENÇÃO
 
@@ -525,8 +504,6 @@ def baixar_e_ler_semiarido():
 
 if __name__ == "__main__":
     df_municipios = baixar_e_ler_semiarido()
-
-df_municipios.info()
 
 """# Listando Propriedades ISENTAS E TRUBUTÁVEIS do SEMIÁRIDO <= 50 e > 50 Hectares"""
 
@@ -582,7 +559,6 @@ total_maior_50 = tabela["propriedades_maior_50"].sum()
 perc_total_ate_50 = (total_ate_50 / total_props) * 100
 perc_total_maior_50 = (total_maior_50 / total_props) * 100
 
-
 linha_total = pd.DataFrame({
     "total_propriedades": [f"{total_props:,.0f}".replace(",", ".")],
     "ate_50_Hectares":    [f"{total_ate_50:,.0f}".replace(",", ".") + f" ({perc_total_ate_50:.1f}%)"],
@@ -599,13 +575,7 @@ tabela_final["maior_50_Hectares"] = tabela.apply(
 )
 
 # Adicionar linha TOTAL
-tabela_final = pd.concat([tabela_final, linha_total])
-
-# Gravando o arquivo por UF no DRIVE
-caminho_arquivo = '/content/drive/MyDrive/SAIDAS ITR/PROPRIEDADES/SEMIARIDO.xlsx'
-tabela_final.to_excel(caminho_arquivo)
-
-print(tabela_final)
+tabela_final2 = pd.concat([tabela_final, linha_total])
 
 """# EXCLUINDO Propriedades ISENTAS do semiárido <= 50 Hectares"""
 
@@ -620,8 +590,6 @@ mask_municipios = PROPRIEDADES_FINAL["CÓDIGO DO MUNICÍPIO (IBGE)"].isin(df_mun
 
 # Remove os que estão em df_municipios E têm AreaTotal <= 50
 PROPRIEDADES_FINAL = PROPRIEDADES_FINAL[~(mask_municipios & (PROPRIEDADES_FINAL["AT IMÓVEL"] <= 50))]
-
-PROPRIEDADES_FINAL.info()
 
 """Listando Propriedades ISENTAS E TRUBUTÁVEIS da Amazônia: Ocidental <= 100 e Oriental <=50"""
 
@@ -683,13 +651,7 @@ linha_total = pd.DataFrame({
 }, index=["TOTAL"])
 
 # Concatenar
-tabela_final = pd.concat([tabela_final, linha_total])
-
-# Gravando o arquivo por UF no DRIVE
-caminho_arquivo = '/content/drive/MyDrive/SAIDAS ITR/PROPRIEDADES/AMAZONIAS.xlsx'
-tabela_final.to_excel(caminho_arquivo)
-
-print(tabela_final)
+tabela_amazonia = pd.concat([tabela_final, linha_total])
 
 """Retirando Propriedades ISENTAS das Amazônias - Oriental e Ocidental"""
 
@@ -768,13 +730,7 @@ tabela_final["maior_100_Hectares"] = tabela.apply(
 )
 
 # Adicionar linha TOTAL
-tabela_final = pd.concat([tabela_final, linha_total])
-
-# Gravando o arquivo por UF no DRIVE
-caminho_arquivo = '/content/drive/MyDrive/SAIDAS ITR/PROPRIEDADES/PANTANAL.xlsx'
-tabela_final.to_excel(caminho_arquivo)
-
-print(tabela_final)
+tabela_pantanal = pd.concat([tabela_final, linha_total])
 
 """Retirando Propriedades ISENTAS dO PANTANAL <= 100 Hectares"""
 
@@ -793,9 +749,6 @@ PROPRIEDADES_FINAL = PROPRIEDADES_FINAL[~(mask_pantanal & (PROPRIEDADES_FINAL["A
 PROPRIEDADES_FINAL.info()
 
 """Criando coluna "REGIÃO" para armazenar os agrupamentos: SEMIÁRIDO, AMAZÔNIAS e PANTANAL
-
-
-"""
 
 # Listas de UFs
 ufs_amaz_ocidental = ["AC", "AM", "RO", "RR"]
@@ -843,8 +796,6 @@ linha_total = pd.DataFrame({"REGIÃO": ["Total"], "Total": [total_geral]})
 # Adiciona ao dataframe
 df = pd.concat([df, linha_total], ignore_index=True)
 
-print(df)
-
 # Eliminando colunas duplicadas
 PROPRIEDADES_FINAL.drop(columns=['Código IBGE'], inplace=True)
 PROPRIEDADES_FINAL.drop(columns=['CD_MUN'], inplace=True)
@@ -857,8 +808,6 @@ print("Quantidade de registros:", contagem)
 """# TUDO CERTO - AGORA CALCULAMOS O ITR"""
 
 ITR_PROPRIEDADE = PROPRIEDADES_FINAL.copy()
-
-ITR_PROPRIEDADE.head()
 
 """# Proporção do tipo de composição do Município - será usado para TODAS as propriedade do minicípio."""
 
@@ -934,8 +883,6 @@ tabela_contagem1 = pd.crosstab(
     margins=True,
     margins_name='Total')
 
-print(tabela_contagem1)
-
 # CONTAGEM ALOCANDO NÚMERO DE PROPRIEDADES POR ÁRA DO IMÓVEL/GRAU DE UTLIZAÇÃO - GU_FIXO
 # com colunas: 'AT_IMOVEL' e 'GU'
 
@@ -956,19 +903,12 @@ tabela_contagem2 = pd.crosstab(
     margins=True,
     margins_name='Total')
 
-print(tabela_contagem2)
-
-#Gravando tabela no DRIVE
-caminho_arquivo = '/content/drive/MyDrive/SAIDAS ITR/PROPRIEDADES/CONTAGEM_ALIQUOTAS_GU_CALC.xlsx'
-tabela_contagem1.to_excel(caminho_arquivo)
-
 #Gravando tabela no DRIVE
 caminho_arquivo = '/content/drive/MyDrive/SAIDAS ITR/PROPRIEDADES/CONTAGEM_ALIQUOTAS_gu_FIXO.xlsx'
 tabela_contagem2.to_excel(caminho_arquivo)
 
 # CAULCULO DAS ALIQUOTAS - USANDO GU FIXO e GU CALCULADO
 # Adiciona essa alíquota como uma nova coluna no DataFrame.
-
 
 # Estrutura de faixas: (limite_superior, [(limite_GU, aliquota), ...])
 faixas = [
@@ -1048,13 +988,7 @@ linha_total = pd.DataFrame(tabela.sum(axis=0)).T
 linha_total.index = ['TOTAL']
 
 # Concatenar resultados
-tabela_final = pd.concat([tabela, linha_total]).reset_index()
-
-print(tabela_final)
-
-#Gravando o arquivo por UF no DRIVE
-caminho_arquivo = '/content/drive/MyDrive/SAIDAS ITR/PROPRIEDADES/CONTAGEM_UF.xlsx'
-tabela_final.to_excel(caminho_arquivo)
+tabela_contagemUF = pd.concat([tabela, linha_total]).reset_index()
 
 print(f"Arquivo salvo em: {caminho_arquivo}")
 
@@ -1082,8 +1016,6 @@ soma_final = pd.concat([soma_por_uf, linha_total], ignore_index=True)
 # Formatar colunas no padrão brasileiro com 2 casas decimais
 for col in ['Arrecadação GU_FIXO', 'Arrecadação GU_CALCULADO']:
     soma_final[col] = soma_final[col].apply(lambda x: f"{x:,.2f}".replace(",", "X").replace(".", ",").replace("X", "."))
-
-print(soma_final)
 
 """# ARRECADAÇÃO ITR por Estado: GU_FIXO e GU_CALCULADO"""
 
@@ -1117,13 +1049,7 @@ linha_total1.index = ['TOTAL']
 tabela_final1 = pd.concat([tabela1, linha_total1])
 
 # Resetar o índice para exibir a coluna de estados como parte dos dados
-tabela_final1 = tabela_final1.reset_index()
-
-print(tabela_final1)
-
-#Gravando o arquivo por UF no DRIVE
-caminho_arquivo = '/content/drive/MyDrive/SAIDAS ITR/PROPRIEDADES/ARRECADAÇÃO_UF GU_FIXO.xlsx'
-tabela_final1.to_excel(caminho_arquivo)
+tabela_GUfixo = tabela_final1.reset_index()
 
 print(f"Arquivo salvo em: {caminho_arquivo}")
 
@@ -1170,14 +1096,9 @@ tabela_final2 = tabela_final2[[
     "500 até 1.000", "1.000 até 5.000", "Acima de 5.000", "TOTAL"]]
 
 # Classificar
-tabela_final2 = tabela_final2.sort_values(
+tabela_PropriedadesMUN = tabela_final2.sort_values(
     by=["Estado", "Município"],
     ascending=[True, True])
-
-caminho_arquivo = '/content/drive/MyDrive/SAIDAS ITR/PROPRIEDADES/PROPRIEDADES POR MUNICIPIOS.xlsx'
-tabela_final2.to_excel(caminho_arquivo)
-
-print(f"Arquivo salvo em: {caminho_arquivo}")
 
 # ORDENAR PARA IMPRIMIR -  PROPRIEDADES por UF (TODAS AS PROPRIEDADES)
 uf = "MT"
@@ -1194,11 +1115,7 @@ ordem_colunas = ["UF", "Município", "DENOMINAÇÃO DO IMÓVEL", "Área Total", 
                  "GU_FIXO","Alíquota_fixa","ITR_GU_FIXO", "GU_CALC", "Alíquota_calc", "ITR_GU_CALC" ]
 
 # Reorganizar o DataFrame
-df_reordenado = SeleçaoUF[ordem_colunas]
-
-# Exportar para Excel
-caminho = "/content/drive/MyDrive/SAIDAS ITR/PROPRIEDADES"
-df_reordenado.to_excel(f"{caminho}/PROPRIEDADES_{uf}.xlsx", index=False)
+tabela_PropriedadesUF = SeleçaoUF[ordem_colunas]
 
 # ORDENAR PARA IMPRIMIR - POR MUNICIPIO (Todas as propriedades)
 MunUF = "Sorocaba - SP"
@@ -1214,11 +1131,7 @@ ordem_colunas = ["UF", "Município", "DENOMINAÇÃO DO IMÓVEL", "Área Total", 
                  "GU_FIXO", "Alíquota_fixa", "ITR_GU_FIXO", "GU_CALC", "Alíquota_calc", "ITR_GU_CALC" ]
 
 # Reorganizar o DataFrame
-df_reordenado = SeleçaoUF[ordem_colunas]
-
-# Exportar para Excel
-caminho = "/content/drive/MyDrive/SAIDAS ITR/PROPRIEDADES"
-df_reordenado.to_excel(f"{caminho}/PROPRIEDADES_{MunUF}.xlsx", index=False)
+tabela_PropriedadesMUN = SeleçaoUF[ordem_colunas]
 
 ##########
 # FORMATAÇÃO DAS COLUNAS DE SAÍDA
@@ -1229,7 +1142,6 @@ ITR_PRONTO["GU_CALC"] = ((ITR_PRONTO["GU_CALC"].astype(float) * 100).round(2))
 
 ITR_PRONTO["AlÍquota_fixa"] =((ITR_PRONTO["AlÍquota_fixa"].astype(float) * 100).round(2))
 ITR_PRONTO["AlÍquota_calc"] =((ITR_PRONTO["AlÍquota_calc"].astype(float) * 100).round(2))
-
 
 ITR_PRONTO["ITR_GU_FIXO"] = ITR_PRONTO["ITR_GU_FIXO"].astype(float)
 ITR_PRONTO["ITR_GU_FIXO"] = ITR_PRONTO["ITR_GU_FIXO"].apply(
@@ -1269,10 +1181,4 @@ total = pd.DataFrame({
 })
 
 # Concatenar tabela com o total
-tabela_final = pd.concat([tabela, total], ignore_index=True)
-
-print(tabela_final)
-
-# Exportar para Excel
-caminho = "/content/drive/MyDrive/SAIDAS ITR/PROPRIEDADES"
-tabela_final.to_excel(f"{caminho}/Concentraçao menos de 2 hectares.xlsx", index=False)
+tabela_Propriedades = pd.concat([tabela, total], ignore_index=True)
