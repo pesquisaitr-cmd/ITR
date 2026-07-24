@@ -409,14 +409,10 @@ def carregar_dados(uf_selecionado):
         gdown.download(url, output, quiet=False)
 
         # Ler o CSV
-        df = pd.read_csv(
-            output,
-            sep=";",
-            header=0,
-            names=column_names,
-            dtype=dtype_dict,
-            low_memory=False
-        )
+        df = pd.read_csv(output, sep=";", header=None, names=column_names,
+                 dtype=dtype_dict, low_memory=False, encoding="latin-1")
+
+        df = df.iloc[1:]  #Descarta a primeira linha 
 
         # Ajustes de formato
         df["AT IMÓVEL"] = df["AT IMÓVEL"].apply(ajustar_formato_numerico_area_total)
