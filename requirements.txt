@@ -1,8 +1,9 @@
-streamlit
 pandas
+streamlit
 plotly
-pdfplumber
 matplotlib
-unidecode
 numpy
+pdfplumber
 requests
+unidecode
+gdown
