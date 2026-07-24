@@ -10,7 +10,6 @@ Original file is located at
     <font color="blue">Cálculos de ITR</font>
 </div>
 """
-
 ####################################
 ###   VERSÃO 23072026
 ####################################
@@ -46,7 +45,7 @@ gdown.download(file_path_mapbiomas, output_mapbiomas, quiet=False)
 # CODIGO MUNICIPIOS.xlsx
 file_path_codes = "https://drive.google.com/uc?id=1OnPYWxQu9K1L0upucj3aPENgEHM6RNEI"
 output_codes = "CODIGO_MUNICIPIOS.xlsx"
-gdown.downloadfile_path_codes, output_codes, quiet=False)
+gdown.download(file_path_codes, output_codes, quiet=False)
 
 # file_path_mapbiomas = "/content/drive/MyDrive/ENTRADAS ITR/MAPBIOMAS.xlsx"
 # file_path_codes = "/content/drive/MyDrive/ENTRADAS ITR/CODIGO MUNICIPIOS.xlsx"
