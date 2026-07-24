@@ -47,9 +47,6 @@ file_path_codes = "https://drive.google.com/uc?id=1OnPYWxQu9K1L0upucj3aPENgEHM6R
 output_codes = "CODIGO_MUNICIPIOS.xlsx"
 gdown.download(file_path_codes, output_codes, quiet=False)
 
-# file_path_mapbiomas = "/content/drive/MyDrive/ENTRADAS ITR/MAPBIOMAS.xlsx"
-# file_path_codes = "/content/drive/MyDrive/ENTRADAS ITR/CODIGO MUNICIPIOS.xlsx"
-
 # Carregar o arquivo Excel MAPBIOMAS - leitura sem cabeçalho
 xls = pd.ExcelFile(file_path_mapbiomas)
 df_raw = pd.read_excel(xls, sheet_name="Dados", header=None)
@@ -352,6 +349,7 @@ def ajustar_percentual_detencao(valor):
     except ValueError:
         return None
 
+@st.cache_data
 def carregar_dados(uf_selecionado):
     # Dicionário que mapeia cada UF para o ID do arquivo no Google Drive
     file_ids = {
@@ -404,10 +402,10 @@ def carregar_dados(uf_selecionado):
         file_id = file_ids[uf]
         url = f"https://drive.google.com/uc?id={file_id}"
         output = f"{uf}.csv"
-
-        # Baixar o arquivo do Drive
-        gdown.download(url, output, quiet=False)
-
+        # Só faz o download se o arquivo local ainda não existir
+        if not os.path.exists(output):
+            gdown.download(url, output, quiet=False, fuzzy=True)
+            
         # Ler o CSV
         df = pd.read_csv(output, sep=";", header=None, names=column_names,
                  dtype=dtype_dict, low_memory=False, encoding="latin-1")
