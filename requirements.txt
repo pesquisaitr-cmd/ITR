@@ -1,6 +1,8 @@
 streamlit
 pandas
 plotly
-google-cloud-bigquery
-google-auth
-gdown
+pdfplumber
+matplotlib
+unidecode
+numpy
+requests
