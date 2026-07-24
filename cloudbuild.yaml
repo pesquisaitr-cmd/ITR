@@ -6,6 +6,7 @@ steps:
   args: ['push', 'gcr.io/$PROJECT_ID/dashboard-itr']
 
 - name: 'google/cloud-sdk:latest'
+  entrypoint: gcloud
   args:
     - 'run'
     - 'deploy'
