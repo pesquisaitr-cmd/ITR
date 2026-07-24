@@ -12,7 +12,7 @@ Original file is located at
 """
 
 ####################################
-###   VERSÃO 09042026
+###   VERSÃO 23072026
 ####################################
 
 import os
@@ -47,7 +47,6 @@ from google.colab import drive
 drive.mount('/content/drive')
 
 """# Dataframe MAPBIOMAS"""
-
 # Funções auxiliares para ajuste de formato numérico
 def ajustar_formato_numerico_area_total(valor):
     return float(valor.replace('.', '').replace(',', '.')) if pd.notnull(valor) else valor
@@ -95,7 +94,6 @@ df_final = pd.DataFrame(data, columns=columns)
 ################################################################
 # Carregar e processar os códigos dos municípios com cabeçalho #
 ################################################################
-
 xls2 = pd.ExcelFile(file_path_codes)
 df_codes = pd.read_excel(xls2, sheet_name="Sheet1")
 
@@ -133,7 +131,6 @@ for municipioUF, valores in valores_corrigir.items():
         Mapbiomas_municípios.loc[mask, coluna] = valor
 
 """# Carregando TABELA VTN 2025, merge com Municípios"""
-
 # Caminhos da tabela VTN 2025
 pdf_path = "/content/drive/MyDrive/ENTRADAS ITR/Planilha VTN 2025 para publicação 5.pdf"
 
@@ -323,14 +320,9 @@ df_values['Preservação da Fauna e da Flora']
 # Concatenar os novos estados ao DataFrame original
 media_VTN_estados = pd.concat([media_VTN_estados, new_states], ignore_index=True)
 
-MAPBIOMAS_VTN_Municípios.info()
-media_VTN_estados.info()
-
-media_VTN_estados.head(27)
-
 """# Completar VTN por município - Municípios sem VTN recebem VTN médio do estado."""
 
-# Fazemos um merge temporário
+# Merge temporário
 df_temp = MAPBIOMAS_VTN_Municípios.merge(
     media_VTN_estados,
     on='UF',
@@ -352,7 +344,6 @@ df_temp = df_temp.drop(columns=[f'{col}_media' for col in
 MAPBIOMAS_VTN_FULL = df_temp.copy()
 
 """# Dataframe PROPRIEDADES"""
-
 def ajustar_formato_numerico_area_total(valor):
     if pd.isnull(valor):
         return valor
@@ -366,7 +357,6 @@ def ajustar_percentual_detencao(valor):
         return float(valor) / 100
     except ValueError:
         return None
-
 
 def carregar_dados(uf_selecionado):
     folder_path = '/content/drive/MyDrive/ESTADOS2'
@@ -470,14 +460,10 @@ tabela_area = pd.crosstab(index=PROPRIEDADES_FINAL['UF'],
                           margins=True,
                           margins_name='TOTAL')
 
-# Contar registros onde AT IMÓVEL < 0.5
-tabela1 = (PROPRIEDADES_FINAL["AT IMÓVEL"] < 0.5).sum()
-
 """## EXCLUSÃO DE MUNICÍCIPIOS COM ISENÇÃO
 
 # Municípios SEMIÁRIDO
 """
-
 def baixar_e_ler_semiarido():
     url = "https://geoftp.ibge.gov.br/organizacao_do_territorio/estrutura_territorial/semiarido_brasileiro/Situacao_2022/lista_municipios_Semiarido_2022.xlsx"
     filename = "Semiarido_2022.xlsx"
@@ -575,7 +561,7 @@ tabela_final["maior_50_Hectares"] = tabela.apply(
 )
 
 # Adicionar linha TOTAL
-tabela_final2 = pd.concat([tabela_final, linha_total])
+tabela_semiarido = pd.concat([tabela_final, linha_total])
 
 """# EXCLUINDO Propriedades ISENTAS do semiárido <= 50 Hectares"""
 
@@ -746,8 +732,6 @@ mask_pantanal = PROPRIEDADES_FINAL["CÓDIGO DO MUNICÍPIO (IBGE)"].isin(df_panta
 # Remove os que estão em df_municipios E têm AreaTotal <= 50
 PROPRIEDADES_FINAL = PROPRIEDADES_FINAL[~(mask_pantanal & (PROPRIEDADES_FINAL["AT IMÓVEL"] <= 100))]
 
-PROPRIEDADES_FINAL.info()
-
 """Criando coluna "REGIÃO" para armazenar os agrupamentos: SEMIÁRIDO, AMAZÔNIAS e PANTANAL
 
 # Listas de UFs
@@ -802,7 +786,7 @@ PROPRIEDADES_FINAL.drop(columns=['CD_MUN'], inplace=True)
 PROPRIEDADES_FINAL.drop(columns=['COD_IBGE'], inplace=True)
 
 # Contar registros onde AT IMÓVEL < 0.5
-contagem = (PROPRIEDADES_FINAL["AT IMÓVEL"] < 0.5).sum()
+tabela_contagem05 = (PROPRIEDADES_FINAL["AT IMÓVEL"] < 0.5).sum()
 print("Quantidade de registros:", contagem)
 
 """# TUDO CERTO - AGORA CALCULAMOS O ITR"""
@@ -877,7 +861,7 @@ labels_gu = ['Até 30', '30+ até 50', '50+ até 65', '65+ até 80', '80+']
 ITR_PROPRIEDADE['Faixa_GU'] = pd.cut(ITR_PROPRIEDADE['GU_CALC'], bins=bins_gu, labels=labels_gu, right=True)
 
 # Criar tabela de contagem com totais
-tabela_contagem1 = pd.crosstab(
+tabela_GUcalculado = pd.crosstab(
     ITR_PROPRIEDADE['Faixa_AT'],
     ITR_PROPRIEDADE['Faixa_GU'],
     margins=True,
@@ -897,15 +881,11 @@ labels_gu = ['Até 30', '30+ até 50', '50+ até 65', '65+ até 80', '80+']
 ITR_PROPRIEDADE['Faixa_GU'] = pd.cut(ITR_PROPRIEDADE['GU_FIXO'], bins=bins_gu, labels=labels_gu, right=True)
 
 # Criar tabela de contagem com totais
-tabela_contagem2 = pd.crosstab(
+tabela_GUfixo = pd.crosstab(
     ITR_PROPRIEDADE['Faixa_AT'],
     ITR_PROPRIEDADE['Faixa_GU'],
     margins=True,
     margins_name='Total')
-
-#Gravando tabela no DRIVE
-caminho_arquivo = '/content/drive/MyDrive/SAIDAS ITR/PROPRIEDADES/CONTAGEM_ALIQUOTAS_gu_FIXO.xlsx'
-tabela_contagem2.to_excel(caminho_arquivo)
 
 # CAULCULO DAS ALIQUOTAS - USANDO GU FIXO e GU CALCULADO
 # Adiciona essa alíquota como uma nova coluna no DataFrame.
@@ -988,7 +968,7 @@ linha_total = pd.DataFrame(tabela.sum(axis=0)).T
 linha_total.index = ['TOTAL']
 
 # Concatenar resultados
-tabela_contagemUF = pd.concat([tabela, linha_total]).reset_index()
+tabela_contagemUFfaixa = pd.concat([tabela, linha_total]).reset_index()
 
 print(f"Arquivo salvo em: {caminho_arquivo}")
 
@@ -1018,7 +998,6 @@ for col in ['Arrecadação GU_FIXO', 'Arrecadação GU_CALCULADO']:
     soma_final[col] = soma_final[col].apply(lambda x: f"{x:,.2f}".replace(",", "X").replace(".", ",").replace("X", "."))
 
 """# ARRECADAÇÃO ITR por Estado: GU_FIXO e GU_CALCULADO"""
-
 #
 import pandas as pd
 import numpy as np
@@ -1046,14 +1025,12 @@ linha_total1 = pd.DataFrame(tabela1.sum(axis=0)).T
 linha_total1.index = ['TOTAL']
 
 # Concatenar os dados finais
-tabela_final1 = pd.concat([tabela1, linha_total1])
+tabela_ITR_UF = pd.concat([tabela1, linha_total1])
 
 # Resetar o índice para exibir a coluna de estados como parte dos dados
 tabela_GUfixo = tabela_final1.reset_index()
 
-print(f"Arquivo salvo em: {caminho_arquivo}")
-
-"""# Geração de valor do ITR por Município"""
+"""# Geração do ITR por Município"""
 
 # Gerar arquivo por município
 # Agrupar por 'Município' e 'Faixa Área' e somar os valores da coluna 'ITR'
@@ -1096,89 +1073,6 @@ tabela_final2 = tabela_final2[[
     "500 até 1.000", "1.000 até 5.000", "Acima de 5.000", "TOTAL"]]
 
 # Classificar
-tabela_PropriedadesMUN = tabela_final2.sort_values(
+tabela_ITR_MUN = tabela_final2.sort_values(
     by=["Estado", "Município"],
     ascending=[True, True])
-
-# ORDENAR PARA IMPRIMIR -  PROPRIEDADES por UF (TODAS AS PROPRIEDADES)
-uf = "MT"
-SeleçaoUF = ITR_PROPRIEDADE[ITR_PROPRIEDADE["UF"] == uf]
-
-#
-ordem_colunas = ["UF", "Município", "DENOMINAÇÃO DO IMÓVEL", "Área Total", "Floresta", "Pastagem", "Silvicultura",
-                 "Lavouras", "Lavoura Aptidão Boa", "Lavoura Aptidão Regular", "Lavoura Aptidão Restrita",
-                 "Pastagem Plantada", "Silvicultura ou Pastagem Natural", "Preservação da Fauna e da Flora",
-                 "% Floresta Município", "% Pastagem Município", "% Silvicultura Município", "% Lavouras Município",
-                 "Floresta Propriedade", "Pastagem Propriedade", "Silvicultura Propriedade",
-                 "Lavouras Propriedade", "AT IMÓVEL","Lavoura Média","VTN Floresta", "VTN Pastagem",
-                 "VTN Silvicultura", "VTN Lavouras", "VTN Total", "Quociente", "VTN tributável",
-                 "GU_FIXO","Alíquota_fixa","ITR_GU_FIXO", "GU_CALC", "Alíquota_calc", "ITR_GU_CALC" ]
-
-# Reorganizar o DataFrame
-tabela_PropriedadesUF = SeleçaoUF[ordem_colunas]
-
-# ORDENAR PARA IMPRIMIR - POR MUNICIPIO (Todas as propriedades)
-MunUF = "Sorocaba - SP"
-SeleçaoUF = ITR_PROPRIEDADE[ITR_PROPRIEDADE["MunicípioUF"] == MunUF]
-
-ordem_colunas = ["UF", "Município", "DENOMINAÇÃO DO IMÓVEL", "Área Total", "Floresta", "Pastagem", "Silvicultura",
-                 "Lavouras", "Lavoura Aptidão Boa", "Lavoura Aptidão Regular", "Lavoura Aptidão Restrita",
-                 "Pastagem Plantada", "Silvicultura ou Pastagem Natural", "Preservação da Fauna e da Flora",
-                 "% Floresta Município", "% Pastagem Município", "% Silvicultura Município", "% Lavouras Município",
-                 "Floresta Propriedade", "Pastagem Propriedade", "Silvicultura Propriedade",
-                 "Lavouras Propriedade", "AT IMÓVEL","Lavoura Média","VTN Floresta", "VTN Pastagem",
-                 "VTN Silvicultura", "VTN Lavouras", "VTN Total", "Quociente", "VTN tributável",
-                 "GU_FIXO", "Alíquota_fixa", "ITR_GU_FIXO", "GU_CALC", "Alíquota_calc", "ITR_GU_CALC" ]
-
-# Reorganizar o DataFrame
-tabela_PropriedadesMUN = SeleçaoUF[ordem_colunas]
-
-##########
-# FORMATAÇÃO DAS COLUNAS DE SAÍDA
-##########
-
-ITR_PRONTO["GU_FIXO"] = ((ITR_PRONTO["GU_FIXO"].astype(float) * 100).round(2))
-ITR_PRONTO["GU_CALC"] = ((ITR_PRONTO["GU_CALC"].astype(float) * 100).round(2))
-
-ITR_PRONTO["AlÍquota_fixa"] =((ITR_PRONTO["AlÍquota_fixa"].astype(float) * 100).round(2))
-ITR_PRONTO["AlÍquota_calc"] =((ITR_PRONTO["AlÍquota_calc"].astype(float) * 100).round(2))
-
-ITR_PRONTO["ITR_GU_FIXO"] = ITR_PRONTO["ITR_GU_FIXO"].astype(float)
-ITR_PRONTO["ITR_GU_FIXO"] = ITR_PRONTO["ITR_GU_FIXO"].apply(
-lambda x: "R${:,.2f}".format(x).replace(',', 'X').replace('.', ',').replace('X', '.'))
-
-ITR_PRONTO["ITR_GU_CALC"] = ITR_PRONTO["ITR_GU_CALC"].astype(float)
-ITR_PRONTO["ITR_GU_CALC"] = ITR_PRONTO["ITR_GU_CALC"].apply(
-lambda x: "R${:,.2f}".format(x).replace(',', 'X').replace('.', ',').replace('X', '.'))
-
-
-ITR_PRONTO["VTN Total"] = ITR_PRONTO["VTN Total"].astype(float)
-ITR_PRONTO["VTN Total"] = ITR_PRONTO["VTN Total"].apply(
-    lambda x: "R${:,.2f}".format(x).replace(',', 'X').replace('.', ',').replace('X', '.'))
-
-ITR_PRONTO["VTN tributável"] = ITR_PRONTO["VTN tributável"].astype(float)
-ITR_PRONTO["VTN tributável"] = ITR_PRONTO["VTN tributável"].apply(
-    lambda x: "R${:,.2f}".format(x).replace(',', 'X').replace('.', ',').replace('X', '.'))
-
-ITR_PRONTO["AT IMÓVEL"] = ITR_PRONTO["AT IMÓVEL"].astype(float)
-ITR_PRONTO["AT IMÓVEL"] = ITR_PRONTO["AT IMÓVEL"].apply(
-    lambda x: "{:.2f}".format(x).replace('.', ','))
-
-"""# Geração de valor do ITR por Município"""
-
-import pandas as pd
-
-# Filtrar apenas imóveis com área < 2
-df_filtrado = PROPRIEDADES_FINAL[PROPRIEDADES_FINAL["AT IMÓVEL"] < 2]
-
-# Agrupar por UF e contar o número de propriedades
-tabela = df_filtrado.groupby("UF").size().reset_index(name="Nº de Propriedades")
-
-# Calcular o total geral
-total = pd.DataFrame({
-    "UF": ["TOTAL"],
-    "Nº de Propriedades": [tabela["Nº de Propriedades"].sum()]
-})
-
-# Concatenar tabela com o total
-tabela_Propriedades = pd.concat([tabela, total], ignore_index=True)
