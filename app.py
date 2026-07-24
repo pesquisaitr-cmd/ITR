@@ -17,12 +17,9 @@ Original file is located at
 
 import os
 import pandas as pd
-!pip install pdfplumber
 import pdfplumber
-!pip install matplotlib
 import matplotlib.pyplot as plt
 import requests
-!pip install unidecode
 import unidecode  # Biblioteca para remover acentos
 import numpy as np
 
