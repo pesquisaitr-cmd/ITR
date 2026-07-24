@@ -24,14 +24,10 @@ import unidecode  # Biblioteca para remover acentos
 import numpy as np
 import streamlit as st
 import plotly.express as px
+import gdown  # para baixar arquivos do Google Drive
 
 st.title("Dashboard ITR - Imposto Territorial Rural")
 
-# Montar o Google Drive para gravar/acessar arquivos
-from google.colab import drive
-drive.mount('/content/drive')
-
-"""# Dataframe MAPBIOMAS"""
 # Funções auxiliares para ajuste de formato numérico
 def ajustar_formato_numerico_area_total(valor):
     return float(valor.replace('.', '').replace(',', '.')) if pd.notnull(valor) else valor
@@ -39,9 +35,21 @@ def ajustar_formato_numerico_area_total(valor):
 def ajustar_percentual_detencao(valor):
     return float(valor) / 100 if pd.notnull(valor) else valor
 
-file_path_mapbiomas = "/content/drive/MyDrive/ENTRADAS ITR/MAPBIOMAS.xlsx"
-file_path_codes = "/content/drive/MyDrive/ENTRADAS ITR/CODIGO MUNICIPIOS.xlsx"
-caminho_csv = "/content/drive/MyDrive/ESTADOS2"
+# ================================
+# DOWNLOAD DIRETO DO GOOGLE DRIVE
+# ================================
+# MAPBIOMAS.xlsx
+file_path_mapbiomas = "https://drive.google.com/uc?id=1iqJIm6vMlsgWrVpbZ8qyyF7iozWKNrNS"
+output_mapbiomas = "MAPBIOMAS.xlsx"
+gdown.download(file_path_mapbiomas, output_mapbiomas, quiet=False)
+
+# CODIGO MUNICIPIOS.xlsx
+file_path_codes = "https://drive.google.com/uc?id=1OnPYWxQu9K1L0upucj3aPENgEHM6RNEI"
+output_codes = "CODIGO_MUNICIPIOS.xlsx"
+gdown.downloadfile_path_codes, output_codes, quiet=False)
+
+# file_path_mapbiomas = "/content/drive/MyDrive/ENTRADAS ITR/MAPBIOMAS.xlsx"
+# file_path_codes = "/content/drive/MyDrive/ENTRADAS ITR/CODIGO MUNICIPIOS.xlsx"
 
 # Carregar o arquivo Excel MAPBIOMAS - leitura sem cabeçalho
 xls = pd.ExcelFile(file_path_mapbiomas)
@@ -116,8 +124,10 @@ for municipioUF, valores in valores_corrigir.items():
         Mapbiomas_municípios.loc[mask, coluna] = valor
 
 """# Carregando TABELA VTN 2025, merge com Municípios"""
-# Caminhos da tabela VTN 2025
-pdf_path = "/content/drive/MyDrive/ENTRADAS ITR/Planilha VTN 2025 para publicação 5.pdf"
+
+# VTN 2025.PDF
+pdf_path = "https://drive.google.com/uc?id=1K253ieRmGqwdtpa0tiLl7YE5NUU6UmFO"
+gdown.download(pdf_path, "Planilha VTN 2025 para publicação 5.pdf", quiet=False)
 
 # Função para normalizar texto removendo acentos e espaços extras
 def normalizar_texto(texto):
@@ -344,13 +354,35 @@ def ajustar_percentual_detencao(valor):
         return None
 
 def carregar_dados(uf_selecionado):
-    folder_path = '/content/drive/MyDrive/ESTADOS2'
-    file_names = {
-        'AC': 'AC.csv', 'AL': 'AL.csv', 'AM': 'AM.csv', 'AP': 'AP.csv', 'BA': 'BA.csv', 'CE': 'CE.csv',
-        'DF': 'DF.csv', 'ES': 'ES.csv', 'GO': 'GO.csv', 'MA': 'MA.csv', 'MG': 'MG.csv', 'MS': 'MS.csv',
-        'MT': 'MT.csv', 'PA': 'PA.csv', 'PB': 'PB.csv', 'PE': 'PE.csv', 'PI': 'PI.csv', 'PR': 'PR.csv',
-        'RJ': 'RJ.csv', 'RN': 'RN.csv', 'RO': 'RO.csv', 'RR': 'RR.csv', 'RS': 'RS.csv', 'SC': 'SC.csv',
-        'SE': 'SE.csv', 'SP': 'SP.csv', 'TO': 'TO.csv'
+    # Dicionário que mapeia cada UF para o ID do arquivo no Google Drive
+    file_ids = {
+        'AC': '10BbOX0KzIO69uZ4zA342I1quNfhtbt6-',
+        'AL': '1_XNW2R6YAefjAZhtKCA3zvNfhvxcBGPB',
+        'AM': '1O_ZD-2tqiBxalNtS6eLIn7ZazGbgS0nL',
+        'AP': '1q3GXM1iKkel93ENoYsgbuRO8YSBv023K',
+        'BA': '1pPIpQ4k-CBeJxWI_GNBj4_NA6UqFqdR7',
+        'CE': '1v-ToNAgvTzECBgERz2jWvUVngs4xImeW',
+        'DF': '1H4AXsI0J0hN7zBS_FTuOdnNiTpFeB7cS',
+        'ES': '13n-ppcfdMgUI55OwtRLPCWa3JVdArhy-',
+        'GO': '1PpPgHXC4byasmZ6w996_8defI-Jm27Ez',
+        'MA': '1IjWENaIgxtOCLjOv7241ZN6h5Ogg2H-j',
+        'MG': '1ZXtNI8MihMoDo3i87C5Nutb7qzVzb4zI',
+        'MS': '1Wpiye7atJwV8G6I2SNGe5_CJJ2-aDzHV',
+        'MT': '12hsLbs_r5UnyBjDN-hE_TusNaxCSVicx',
+        'PA': '1PpzUpHoHhGAUW21rqYon1NhBFcDO9K2E',
+        'PB': '1VMmExlxsopXQCSc_YVOv8wI858rz1qII',
+        'PE': '1HOrUl9847ogubFnVWADoFkZshCrXXkCi',
+        'PI': '1QH0KN2P9DoqvsuVwu54KqmA4BGoz8qm3',
+        'PR': '18WH_NrscfCo_ZDYc3WTUfa4rCpM7InyQ',
+        'RJ': '1XYI_ZgdXrFVmMlfdlEAYMWnX55nN_7C2',
+        'RN': '1sgcS7CNkOGyjGHm7da9VVurP37aFf9eq',
+        'RO': '1zHDkAKdUlygAd4Y4YTUg7WXFHsDxlUMq',
+        'RR': '1wpopqOOOZURSb5j2o10DziTzUXwtu0QZ',
+        'RS': '1V_MFD6LhgMFaicOti5rYBBw9n5Uni3E9',
+        'SC': '1dOtvZaPbDduhGHhe9nv9F-Qs-wEcicuD',
+        'SE': '1ymcIAgEfB1d43518gVgEc457IwPWfrXb',
+        'SP': '17JnfFF0bdnr35jv_Cgk6o_hTpyeCKz2P',
+        'TO': '1ZqCdOgxftE0PjuyOcdt87cX56-OQ9MBc'
     }
 
     column_names = [
@@ -363,17 +395,23 @@ def carregar_dados(uf_selecionado):
         "CÓDIGO DO MUNICÍPIO (IBGE)": str,
         "PERCENTUAL DE DETENÇÃO": str
     }
-
+    
     df_list = []
 
     # Se selecionar 'BR', carregar todos os estados, senão carregar apenas o estado desejado
-    estados_para_carregar = file_names.keys() if uf_selecionado == 'BR' else [uf_selecionado]
+    estados_para_carregar = file_ids.keys() if uf_selecionado == 'BR' else [uf_selecionado]
 
     for uf in estados_para_carregar:
-        file_path = os.path.join(folder_path, file_names[uf])
+        file_id = file_ids[uf]
+        url = f"https://drive.google.com/uc?id={file_id}"
+        output = f"{uf}.csv"
 
+        # Baixar o arquivo do Drive
+        gdown.download(url, output, quiet=False)
+
+        # Ler o CSV
         df = pd.read_csv(
-            file_path,
+            output,
             sep=";",
             header=0,
             names=column_names,
@@ -381,6 +419,7 @@ def carregar_dados(uf_selecionado):
             low_memory=False
         )
 
+        # Ajustes de formato
         df["AT IMÓVEL"] = df["AT IMÓVEL"].apply(ajustar_formato_numerico_area_total)
         df["PERCENTUAL DE DETENÇÃO"] = df["PERCENTUAL DE DETENÇÃO"].apply(ajustar_percentual_detencao)
         df["ÁREA DE DETENÇÃO"] = df["AT IMÓVEL"] * df["PERCENTUAL DE DETENÇÃO"]
@@ -390,7 +429,7 @@ def carregar_dados(uf_selecionado):
 
     df_concatenado = pd.concat(df_list, ignore_index=True)
     return df_concatenado
-
+    
 # Escolha o estado desejado (exemplo: 'SP' para São Paulo ou 'BR' para todos)
 uf_selecionado = 'BR'  # Altere para o estado desejado ou 'BR' para todos os estados
 
@@ -632,9 +671,13 @@ PROPRIEDADES_FINAL.info()
 
 """Listando Propriedades ISENTAS E TRUBUTÁVEIS do PANTANAL: <= 100 e >100"""
 
-# Caminho do arquivo
-file_path_pantanal = '/content/drive/MyDrive/ENTRADAS ITR/Pantanal.xlsx'
+# LRITURA PANTANAL
+file_path_pantanal = "https://drive.google.com/uc?id=1N2PnMtUBwHV5hXXyFMTRs8jrxzaftcsG"
+gdown.download(file_path_pantanal, "Pantanal.xlsx", quiet=False)
+
+# file_path_pantanal = '/content/drive/MyDrive/ENTRADAS ITR/Pantanal.xlsx'
 # Carregar a planilha
+
 df_pantanal = pd.read_excel(file_path_pantanal, engine="openpyxl")
 
 df_pantanal["COD_IBGE"] = df_pantanal["COD_IBGE"].astype(str)
