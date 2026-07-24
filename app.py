@@ -22,22 +22,10 @@ import matplotlib.pyplot as plt
 import requests
 import unidecode  # Biblioteca para remover acentos
 import numpy as np
-
 import streamlit as st
-import pandas as pd
 import plotly.express as px
 
 st.title("Dashboard ITR - Imposto Territorial Rural")
-
-# Carregar dados (exemplo: CSV exportado do Google Drive)
-df = pd.read_csv("dados_itr.csv")
-
-st.subheader("Tabela de dados")
-st.dataframe(df.head())
-
-st.subheader("Arrecadação por Estado")
-fig = px.bar(df, x="UF", y="valor_itr", title="Arrecadação ITR por Estado")
-st.plotly_chart(fig)
 
 # Montar o Google Drive para gravar/acessar arquivos
 from google.colab import drive
