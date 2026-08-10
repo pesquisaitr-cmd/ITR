@@ -259,10 +259,9 @@ colunas_valores = [
 ]
 # 2. Loop for (sem recuo na linha do 'for')
 for coluna in colunas_valores:
-    if coluna in df_dados.columns:
-        df_dados[coluna] = df_dados[coluna].apply(converter_para_float)
+        if coluna in df.columns:
+            df[coluna] = df[coluna].apply(converter_para_float)
     return df
-
 # Executar extração e conversão
 df_dados = extrair_dados_pdf_formatado(pdf_path)    #### 2.766 Municípios usados para
                                                     #### calcular as médias por UF
