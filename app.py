@@ -2,6 +2,7 @@ import streamlit as st
 import pandas as pd
 import numpy as np
 import os
+import gdown
 
 # ==========================================
 # 1. CONFIGURAÇÃO DA PÁGINA
@@ -20,20 +21,17 @@ st.markdown("Consulta e análise estatística de alíquotas, áreas e distribui�
 # ==========================================
 @st.cache_data
 def carregar_dados():
-    # 1. Se estiver no Colab, monta o Google Drive
-    if IN_COLAB:
-        if not os.path.exists('/content/drive'):
-            drive.mount('/content/drive')
-        caminho_parquet = '/content/drive/MyDrive/ENTRADAS ITR/ITR_PRONTO.parquet'
-    
-    # 2. Se estiver rodando no GCP / Cloud Run / Servidor Externo
-    else:
-        # Lê o arquivo vindo do repositório ou diretório local do container
-        caminho_parquet = 'ITR_PRONTO.parquet'
-        
-    df = pd.read_parquet(caminho_parquet)
-    return df
-df = carregar_dados()
+  file_id = "1b5QIh3W11OtHUwOH2Pf-K4vDWGMBVFAa"
+  caminho_local = "ITR_PRONTO.parquet"
+  url_drive = f"https://drive.google.com/uc?id={file_id}"
+
+  # Se o arquivo ainda não existir no container do Cloud Run, baixa do Drive
+  if not os.path.exists(caminho_local):
+    with st.spinner("Baixando dados do Google Drive..."):
+      gdown.download(url_drive, caminho_local, quiet=False)
+
+  df = pd.read_parquet(caminho_local)
+  return df
 # ==========================================
 # 3. FUNÇÕES ESTATÍSTICAS E PROCESSAMENTO
 # ==========================================
@@ -136,7 +134,5 @@ try:
         mime="text/csv"
     )
 
-except FileNotFoundError:
-    st.error("⚠️ O arquivo `ITR_PRONTO.parquet` não foi encontrado no caminho especificado do Google Drive.")
 except Exception as e:
     st.error(f"⚠️ Ocorreu um erro ao carregar/processar os dados: {e}")
