@@ -7,3 +7,6 @@ pdfplumber
 requests
 unidecode
 gdown
+streamlit
+pandas
+openpyxl
