@@ -257,14 +257,22 @@ colunas_valores = [
     'Silvicultura ou Pastagem Natural', 
     'Preservação da Fauna e da Flora'
 ]
-# 2. Loop for (sem recuo na linha do 'for')
-for coluna in colunas_valores:
+# 2. Loop for dentro da função (deve ter 4 espaços de recuo)
+    for coluna in colunas_valores:
         if coluna in df.columns:
             df[coluna] = df[coluna].apply(converter_para_float)
+
+    # O return encerra a função (deve ter 4 espaços de recuo)
     return df
+
+
+# ==========================================
+# EXECUÇÃO (Fora da função - encostado na esquerda)
+# ==========================================
+
 # Executar extração e conversão
-df_dados = extrair_dados_pdf_formatado(pdf_path)    #### 2.766 Municípios usados para
-                                                    #### calcular as médias por UF
+df_dados = extrair_dados_pdf_formatado(pdf_path)  #### 2.766 Municípios usados para calcular as médias por UF
+
 # Corrigir nome de município com erro de OCR
 df_dados['Nome Município'] = df_dados['Nome Município'].replace("C+A2:I2722ORURIPE", "Coruripe - AL")
 
@@ -273,7 +281,6 @@ colunas_para_media = [
     'Lavoura Aptidão Boa', 'Lavoura Aptidão Regular', 'Lavoura Aptidão Restrita',
     'Pastagem Plantada', 'Silvicultura ou Pastagem Natural', 'Preservação da Fauna e da Flora'
 ]
-
 # Calcular média por estado (UF)
 media_VTN_estados = df_dados.groupby('UF')[colunas_para_media].mean().reset_index()
 
