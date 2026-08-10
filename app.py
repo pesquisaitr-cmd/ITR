@@ -129,38 +129,48 @@ for municipioUF, valores in valores_corrigir.items():
 
 """# Carregando TABELA VTN 2025, merge com Municípios"""
 
-# VTN 2025.PDF
+import pdfplumber
+import pandas as pd
 import gdown
+import unidecode  # Necessário para a função normalizar_texto
 
-# 1. Defina a URL e o caminho local onde o PDF será salvo
-url_pdf = 'https://drive.google.com/uc?id=1K253ieRmGqwdtpa0tiLl7YE5NUU6UmFO'
-pdf_path = 'Planilha VTN 2025 para publicação 5.pdf'
+# ==========================================
+# 1. DEFINIÇÃO DE FUNÇÕES AUXILIARES
+# (Devem vir ANTES da função principal que as usa)
+# ==========================================
 
-# 2. Faça o download do arquivo primeiro
-gdown.download(url_pdf, pdf_path, quiet=False)
-
-# 3. Agora passe o arquivo LOCAL para a sua função
-df_dados = extrair_dados_pdf_formatado(pdf_path)
-
-# Função para normalizar texto removendo acentos e espaços extras
 def normalizar_texto(texto):
     if pd.isna(texto):
         return None
-    return unidecode.unidecode(texto).upper().strip()
+    return unidecode.unidecode(str(texto)).upper().strip()
 
-# Carregar a planilha de referência - aproveitando arquivo de municípios atualizados já baixado
-df_xlsx = df_codes.copy()
 
-# Criar chave de mapeamento: "MUNICÍPIO - UF" - tudo maiúsculo como em Planilha VTN
-df_xlsx["Nome_Normalizado"] = (
-    df_xlsx["Município"].apply(normalizar_texto) + " - " + df_xlsx["UF"].str.upper()
-)
-# Criar dicionário para mapear "MUNICÍPIO - UF" → Sigla correta
-mapeamento_municipios = dict(zip(df_xlsx["Nome_Normalizado"], df_xlsx["MunicípioUF"]))
+def converter_para_float(valor):
+    if isinstance(valor, str):
+        valor = valor.replace("R$", "").replace(".", "").replace(",", ".").strip()
+        try:
+            return float(valor)
+        except ValueError:
+            return None
+    return None
 
-# Função para extrair dados formatados do PDF
-def extrair_dados_pdf_formatado(caminho_pdf):   # VTN: Lavoura-AB, AR, AR, Pastagem,
-    with pdfplumber.open(caminho_pdf) as pdf:   # Silvicultura, Preservação. 20 estados;  2.776 Municípios
+
+# ==========================================
+# 2. DEFINIÇÃO DA FUNÇÃO PRINCIPAL DE EXTRAÇÃO
+# ==========================================
+
+def extrair_dados_pdf_formatado(caminho_pdf):
+    # Carregar a planilha de referência - aproveitando arquivo de municípios atualizados já baixado
+    df_xlsx = df_codes.copy()
+
+    # Criar chave de mapeamento: "MUNICÍPIO - UF" - tudo maiúsculo como em Planilha VTN
+    df_xlsx["Nome_Normalizado"] = (
+        df_xlsx["Município"].apply(normalizar_texto) + " - " + df_xlsx["UF"].str.upper()
+    )
+    # Criar dicionário para mapear "MUNICÍPIO - UF" → Sigla correta
+    mapeamento_municipios = dict(zip(df_xlsx["Nome_Normalizado"], df_xlsx["MunicípioUF"]))
+
+    with pdfplumber.open(caminho_pdf) as pdf:
         dados = []
 
         # Percorrer todas as páginas do PDF
@@ -198,7 +208,7 @@ def extrair_dados_pdf_formatado(caminho_pdf):   # VTN: Lavoura-AB, AR, AR, Pasta
                         pastagem_plantada, silvicultura, fauna_flora
                     ])
 
- # Criar DataFrame com os dados extraídos
+    # Criar DataFrame com os dados extraídos
     colunas = [
         'UF', 'Nome Município', 'Lavoura Aptidão Boa', 'Lavoura Aptidão Regular',
         'Lavoura Aptidão Restrita', 'Pastagem Plantada',
@@ -207,19 +217,35 @@ def extrair_dados_pdf_formatado(caminho_pdf):   # VTN: Lavoura-AB, AR, AR, Pasta
     df = pd.DataFrame(dados, columns=colunas)
 
     # Limpeza dos dados
-    df = df.dropna(how='all')                      # remover linhas totalmente vazias
-    df = df.dropna(subset=['Nome Município'])      # remover linhas sem município
-    df = df.drop_duplicates(subset=['UF', 'Nome Município'])  # remover duplicatas
+    df = df.dropna(how='all')                                     # remover linhas totalmente vazias
+    df = df.dropna(subset=['Nome Município'])                     # remover linhas sem município
+    df = df.drop_duplicates(subset=['UF', 'Nome Município'])     # remover duplicatas
 
-    # Função para converter valores monetários para float
-    def converter_para_float(valor):
-        if isinstance(valor, str):
-            valor = valor.replace("R$", "").replace(".", "").replace(",", ".").strip()
-            try:
-                return float(valor)
-            except ValueError:
-                return None
-        return None
+    # Aplica conversão para float nas colunas numéricas
+    colunas_numericas = [
+        'Lavoura Aptidão Boa', 'Lavoura Aptidão Regular', 'Lavoura Aptidão Restrita',
+        'Pastagem Plantada', 'Silvicultura ou Pastagem Natural', 'Preservação da Fauna e da Flora'
+    ]
+    for col in colunas_numericas:
+        if col in df.columns:
+            df[col] = df[col].apply(converter_para_float)
+
+    return df
+
+
+# ==========================================
+# 3. DOWNLOAD E EXECUÇÃO
+# (Executado apenas após todas as funções estarem definidas)
+# ==========================================
+
+url_pdf = 'https://drive.google.com/uc?id=1K253ieRmGqwdtpa0tiLl7YE5NUU6UmFO'
+pdf_path = 'Planilha VTN 2025 para publicação 5.pdf'
+
+# Download do arquivo
+gdown.download(url_pdf, pdf_path, quiet=False)
+
+# Chamada da função
+df_dados = extrair_dados_pdf_formatado(pdf_path)
 
     # Aplicar conversão nas colunas de valores
     colunas_valores = [
