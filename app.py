@@ -232,10 +232,62 @@ def extrair_dados_pdf_formatado(caminho_pdf):
 
     return df
 
+# ==========================================
+# ETAPA 1: DEFINIÇÃO DA FUNÇÃO (Tudo com recuo/indentação)
+# ==========================================
+
+def extrair_dados_pdf_formatado(caminho_pdf):
+    # 1. Mapeamento e extração do PDF
+    df_xlsx = df_codes.copy()
+    df_xlsx["Nome_Normalizado"] = (
+        df_xlsx["Município"].apply(normalizar_texto) + " - " + df_xlsx["UF"].str.upper()
+    )
+    mapeamento_municipios = dict(zip(df_xlsx["Nome_Normalizado"], df_xlsx["MunicípioUF"]))
+
+    dados = []
+    with pdfplumber.open(caminho_pdf) as pdf:
+        for pagina in pdf.pages:
+            tabelas = pagina.extract_tables()
+            for tabela in tabelas:
+                for linha in tabela:
+                    if not linha[0] or 'UF' in linha[0] or 'Nome Município' in linha[0] or "VALORES DE TERRA" in linha[0]:
+                        continue
+
+                    uf = linha[0].strip().upper() if linha[0] else None
+                    municipio = normalizar_texto(linha[1]) if linha[1] else None
+                    chave_busca = f"{municipio} - {uf}" if municipio and uf else municipio
+                    municipio_corrigido = mapeamento_municipios.get(chave_busca, municipio)
+
+                    dados.append([
+                        uf, municipio_corrigido, linha[2], linha[3], linha[4],
+                        linha[5], linha[6], linha[7]
+                    ])
+
+    colunas = [
+        'UF', 'Nome Município', 'Lavoura Aptidão Boa', 'Lavoura Aptidão Regular',
+        'Lavoura Aptidão Restrita', 'Pastagem Plantada',
+        'Silvicultura ou Pastagem Natural', 'Preservação da Fauna e da Flora'
+    ]
+    df = pd.DataFrame(dados, columns=colunas)
+    df = df.dropna(how='all')
+    df = df.dropna(subset=['Nome Município'])
+    df = df.drop_duplicates(subset=['UF', 'Nome Município'])
+
+    # 2. Loop de conversão dos valores monetários (Ainda DENTRO da função - 4 espaços)
+    colunas_valores = [
+        'Lavoura Aptidão Boa', 'Lavoura Aptidão Regular', 'Lavoura Aptidão Restrita',
+        'Pastagem Plantada', 'Silvicultura ou Pastagem Natural', 'Preservação da Fauna e da Flora'
+    ]
+    for coluna in colunas_valores:
+        if coluna in df.columns:
+            df[coluna] = df[coluna].apply(converter_para_float)
+
+    # 3. Retorno do DataFrame pronto (Ainda DENTRO da função - 4 espaços)
+    return df
+
 
 # ==========================================
-# 3. DOWNLOAD E EXECUÇÃO
-# (Executado apenas após todas as funções estarem definidas)
+# ETAPA 2: DOWNLOAD E EXECUÇÃO (Sem recuo - Margem esquerda)
 # ==========================================
 
 url_pdf = 'https://drive.google.com/uc?id=1K253ieRmGqwdtpa0tiLl7YE5NUU6UmFO'
@@ -244,28 +296,8 @@ pdf_path = 'Planilha VTN 2025 para publicação 5.pdf'
 # Download do arquivo
 gdown.download(url_pdf, pdf_path, quiet=False)
 
-# Chamada da função
+# Chamada da função (AGORA SIM, após ela estar 100% construída acima)
 df_dados = extrair_dados_pdf_formatado(pdf_path)
-
-# Aplicar conversão nas colunas de valores
-# Sem nenhum espaço no início da linha (alinhado totalmente à esquerda)
-colunas_valores = [
-    'Lavoura Aptidão Boa', 
-    'Lavoura Aptidão Regular', 
-    'Lavoura Aptidão Restrita',
-    'Pastagem Plantada', 
-    'Silvicultura ou Pastagem Natural', 
-    'Preservação da Fauna e da Flora'
-]
-# 2. Loop for dentro da função (deve ter 4 espaços de recuo)
-    for coluna in colunas_valores:
-        if coluna in df.columns:
-            df[coluna] = df[coluna].apply(converter_para_float)
-
-    # O return encerra a função (deve ter 4 espaços de recuo)
-    return df
-
-
 # ==========================================
 # EXECUÇÃO (Fora da função - encostado na esquerda)
 # ==========================================
