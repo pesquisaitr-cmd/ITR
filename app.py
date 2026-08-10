@@ -109,11 +109,19 @@ Mapbiomas_municípios = pd.merge(df_codes, df_final,
 
 Mapbiomas_municípios.info()
 
-# Completando Código IBGE de 2 municípios não constantes do arquivo de municípios
+  # Completando Código IBGE de 5 municípios não constantes do arquivo de municípios
 valores_corrigir = {
     "Lagoa dos Patos - RS": {"Município": "Lagoa dos Patos", "Código IBGE": 4300002, "UF":"RS"},
-    "Lagoa Mirim - RS":     {"Município": "Lagoa Mirim",     "Código IBGE": 4300001, "UF":"RS"}
+    "Lagoa Mirim - RS":     {"Município": "Lagoa Mirim",     "Código IBGE": 4300001, "UF":"RS"},
+    "São Luiz - RR":        {"Município": "São Luiz",        "Código IBGE": 1400605, "UF":"RR"},
+    "Açu - RN":             {"Município": "Açu",             "Código IBGE": 2400201, "UF":"RN"},
+    "Arês - RN":            {"Município": "Arês",            "Código IBGE": 2401206, "UF":"RN"}
 }
+for MunicipioUF, valores in valores_corrigir.items():
+    mask = Mapbiomas_municípios["MunicípioUF"] == MunicipioUF
+    for coluna, valor in valores.items():
+        Mapbiomas_municípios.loc[mask, coluna] = valor
+
 for municipioUF, valores in valores_corrigir.items():
     mask = Mapbiomas_municípios["MunicípioUF"] == municipioUF
     for coluna, valor in valores.items():
