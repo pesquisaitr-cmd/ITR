@@ -130,8 +130,17 @@ for municipioUF, valores in valores_corrigir.items():
 """# Carregando TABELA VTN 2025, merge com Municípios"""
 
 # VTN 2025.PDF
-pdf_path = "https://drive.google.com/uc?id=1K253ieRmGqwdtpa0tiLl7YE5NUU6UmFO"
-gdown.download(pdf_path, "Planilha VTN 2025 para publicação 5.pdf", quiet=False)
+import gdown
+
+# 1. Defina a URL e o caminho local onde o PDF será salvo
+url_pdf = 'https://drive.google.com/uc?id=1K253ieRmGqwdtpa0tiLl7YE5NUU6UmFO'
+pdf_path = 'Planilha VTN 2025 para publicação 5.pdf'
+
+# 2. Faça o download do arquivo primeiro
+gdown.download(url_pdf, pdf_path, quiet=False, fuzzy=True)
+
+# 3. Agora passe o arquivo LOCAL para a sua função
+df_dados = extrair_dados_pdf_formatado(pdf_path)
 
 # Função para normalizar texto removendo acentos e espaços extras
 def normalizar_texto(texto):
