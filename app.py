@@ -137,7 +137,7 @@ url_pdf = 'https://drive.google.com/uc?id=1K253ieRmGqwdtpa0tiLl7YE5NUU6UmFO'
 pdf_path = 'Planilha VTN 2025 para publicação 5.pdf'
 
 # 2. Faça o download do arquivo primeiro
-gdown.download(url_pdf, pdf_path, quiet=False, fuzzy=True)
+gdown.download(url_pdf, pdf_path, quiet=False)
 
 # 3. Agora passe o arquivo LOCAL para a sua função
 df_dados = extrair_dados_pdf_formatado(pdf_path)
