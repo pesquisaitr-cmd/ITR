@@ -20,16 +20,19 @@ st.markdown("Consulta e análise estatística de alíquotas, áreas e distribui�
 # ==========================================
 @st.cache_data
 def carregar_dados():
-    # Caminho do arquivo Parquet na pasta da aplicação no GCP
-    caminho_parquet = 'ITR_PRONTO.parquet'
+    # 1. Se estiver no Colab, monta o Google Drive
+    if IN_COLAB:
+        if not os.path.exists('/content/drive'):
+            drive.mount('/content/drive')
+        caminho_parquet = '/content/drive/MyDrive/ENTRADAS ITR/ITR_PRONTO.parquet'
     
-    if not os.path.exists(caminho_parquet):
-        st.error(f"Arquivo '{caminho_parquet}' não encontrado no servidor!")
-        st.stop()
+    # 2. Se estiver rodando no GCP / Cloud Run / Servidor Externo
+    else:
+        # Lê o arquivo vindo do repositório ou diretório local do container
+        caminho_parquet = 'ITR_PRONTO.parquet'
         
     df = pd.read_parquet(caminho_parquet)
     return df
-
 df = carregar_dados()
 # ==========================================
 # 3. FUNÇÕES ESTATÍSTICAS E PROCESSAMENTO
