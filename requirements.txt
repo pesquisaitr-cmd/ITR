@@ -8,6 +8,6 @@ requests
 unidecode
 gdown>=5.1.0
 streamlit
-pandas
 openpyxl
 Unidecode
+pyarrow
