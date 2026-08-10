@@ -6,7 +6,7 @@ numpy
 pdfplumber
 requests
 unidecode
-gdown
+gdown>=5.1.0
 streamlit
 pandas
 openpyxl
