@@ -261,7 +261,7 @@ colunas_valores = [
 for coluna in colunas_valores:
     if coluna in df_dados.columns:
         df_dados[coluna] = df_dados[coluna].apply(converter_para_float)
-return df
+    return df
 
 # Executar extração e conversão
 df_dados = extrair_dados_pdf_formatado(pdf_path)    #### 2.766 Municípios usados para
