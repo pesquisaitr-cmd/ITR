@@ -258,12 +258,14 @@ colunas_valores = [
     'Preservação da Fauna e da Flora'
 ]
 # 2. Loop for dentro da função (deve ter 4 espaços de recuo)
-for coluna in colunas_valores:
-    if coluna in df.columns:
-        df[coluna] = df[coluna].apply(converter_para_float)
+    for coluna in colunas_valores:
+        if coluna in df.columns:
+            df[coluna] = df[coluna].apply(converter_para_float)
 
     # O return encerra a função (deve ter 4 espaços de recuo)
     return df
+
+
 # ==========================================
 # EXECUÇÃO (Fora da função - encostado na esquerda)
 # ==========================================
