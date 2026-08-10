@@ -1,7 +1,6 @@
 import streamlit as st
 import pandas as pd
 import numpy as np
-from google.colab import drive
 import os
 
 # ==========================================
@@ -21,14 +20,17 @@ st.markdown("Consulta e análise estatística de alíquotas, áreas e distribui�
 # ==========================================
 @st.cache_data
 def carregar_dados():
-    # Monta o Google Drive se estiver rodando no ambiente Colab
-    if not os.path.exists('/content/drive'):
-        drive.mount('/content/drive')
+    # Caminho do arquivo Parquet na pasta da aplicação no GCP
+    caminho_parquet = 'ITR_PRONTO.parquet'
+    
+    if not os.path.exists(caminho_parquet):
+        st.error(f"Arquivo '{caminho_parquet}' não encontrado no servidor!")
+        st.stop()
         
-    caminho_parquet = '/content/drive/MyDrive/ENTRADAS ITR/ITR_PRONTO.parquet'
     df = pd.read_parquet(caminho_parquet)
     return df
 
+df = carregar_dados()
 # ==========================================
 # 3. FUNÇÕES ESTATÍSTICAS E PROCESSAMENTO
 # ==========================================
