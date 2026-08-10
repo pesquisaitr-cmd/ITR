@@ -247,11 +247,16 @@ gdown.download(url_pdf, pdf_path, quiet=False)
 # Chamada da função
 df_dados = extrair_dados_pdf_formatado(pdf_path)
 
-    # Aplicar conversão nas colunas de valores
-    colunas_valores = [
-        'Lavoura Aptidão Boa', 'Lavoura Aptidão Regular', 'Lavoura Aptidão Restrita',
-        'Pastagem Plantada', 'Silvicultura ou Pastagem Natural', 'Preservação da Fauna e da Flora'
-    ]
+# Aplicar conversão nas colunas de valores
+# Sem nenhum espaço no início da linha (alinhado totalmente à esquerda)
+colunas_valores = [
+    'Lavoura Aptidão Boa', 
+    'Lavoura Aptidão Regular', 
+    'Lavoura Aptidão Restrita',
+    'Pastagem Plantada', 
+    'Silvicultura ou Pastagem Natural', 
+    'Preservação da Fauna e da Flora'
+]
     for coluna in colunas_valores:
         df[coluna] = df[coluna].apply(converter_para_float)
 
