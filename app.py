@@ -14,7 +14,7 @@ TABLE_PATH = f"`{PROJECT_ID}.dados_itr.itr_pronto`"
 
 @st.cache_resource
 def get_client():
-  return bigquery.Client(project=pesquisa-itr)
+  return bigquery.Client(project="pesquisa-itr")
 
 @st.cache_data(ttl=3600)
 def carregar_ufs():
