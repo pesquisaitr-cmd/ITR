@@ -1,13 +1,6 @@
+streamlit
 pandas
-streamlit
+google-cloud-bigquery
+db-dtypes
 plotly
-matplotlib
-numpy
-pdfplumber
-requests
-unidecode
-gdown>=5.1.0
-streamlit
-openpyxl
-Unidecode
 pyarrow
