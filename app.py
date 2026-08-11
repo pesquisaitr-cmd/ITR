@@ -1,138 +1,163 @@
-import streamlit as st
 import pandas as pd
-import numpy as np
-import os
-import gdown
+import plotly.express as px
+import streamlit as st
+from google.cloud import bigquery
 
-# ==========================================
-# 1. CONFIGURAÇÃO DA PÁGINA
-# ==========================================
+# Configuração da página
 st.set_page_config(
-    page_title="Painel ITR - Pesquisa e Estatísticas",
-    page_icon="🌾",
-    layout="wide"
+    page_title="Painel de Análise ITR", page_icon="📊", layout="wide"
 )
 
-st.title("🌾 Painel de Análise e Estatísticas do ITR")
-st.markdown("Consulta e análise estatística de alíquotas, áreas e distribuição por UF/Município.")
+# Configuração do BigQuery
+PROJECT_ID = "pesquisa-itr"
+TABLE_PATH = f"`{PROJECT_ID}.dados_itr.itr_pronto`"
 
-# ==========================================
-# 2. CARREGAMENTO DOS DADOS (LEITURA DO PARQUET)
-# ==========================================
-@st.cache_data
-def carregar_dados():
-  file_id = "1b5QIh3W11OtHUwOH2Pf-K4vDWGMBVFAa"
-  caminho_local = "ITR_PRONTO.parquet"
-  url_drive = f"https://drive.google.com/uc?id={file_id}"
 
-  # Se o arquivo ainda não existir no container do Cloud Run, baixa do Drive
-  if not os.path.exists(caminho_local):
-    with st.spinner("Baixando dados do Google Drive..."):
-      gdown.download(url_drive, caminho_local, quiet=False)
+@st.cache_resource
+def get_client():
+  return bigquery.Client(project=PROJECT_ID)
 
-  df = pd.read_parquet(caminho_local)
-  return df
-# ==========================================
-# 3. FUNÇÕES ESTATÍSTICAS E PROCESSAMENTO
-# ==========================================
-def gerar_metricas_uf(df_input):
-    """Gera contagem por UF, filtro < 2ha e matriz por faixas de área."""
-    bins = [-np.inf, 50, 200, 500, 1000, 5000, np.inf]
-    labels = ['Até 50', '50 até 200', '200 até 500', '500 até 1.000', '1.000 até 5.000', 'Acima de 5.000']
-    
-    # 1. Total de propriedades por UF
-    propriedades_por_uf = df_input.groupby('UF').size().reset_index(name='Total Propriedades')
 
-    # 2. Propriedades com AT IMÓVEL < 2 ha por UF
-    menor_que_2_por_uf = (
-        df_input[df_input['AT IMÓVEL'] < 2]
-        .groupby('UF')
-        .size()
-        .reset_index(name='Qtd < 2 ha')
-    )
+@st.cache_data(ttl=3600)
+def carregar_ufs():
+  client = get_client()
+  query = f"SELECT DISTINCT UF FROM {TABLE_PATH} WHERE UF IS NOT NULL ORDER BY UF"
+  return client.query(query).to_dataframe()["UF"].tolist()
 
-    # 3. Tabela Pivotada por Faixa de Área
-    df_temp = df_input.copy()
-    df_temp['Faixa Área'] = pd.cut(df_temp['AT IMÓVEL'], bins=bins, labels=labels)
-    
-    agrupado = df_temp.groupby(['UF', 'Faixa Área'], observed=False).size().reset_index(name='Qtde')
-    tabela_faixas = agrupado.pivot(index='UF', columns='Faixa Área', values='Qtde').fillna(0).astype(int)
-    
-    tabela_faixas = tabela_faixas[labels]
-    tabela_faixas['TOTAL'] = tabela_faixas.sum(axis=1)
 
-    # Consolida resumo
-    resumo_uf = pd.merge(propriedades_por_uf, menor_que_2_por_uf, on='UF', how='left').fillna(0)
-    resumo_uf['Qtd < 2 ha'] = resumo_uf['Qtd < 2 ha'].astype(int)
+@st.cache_data(ttl=3600)
+def carregar_dados_uf(uf_selecionada):
+  client = get_client()
+  query = f"""
+        SELECT 
+            UF,
+            `CODIGO DO MUNICIPIO (IBGE)` AS codigo_ibge,
+            Municipio AS municipio,
+            `AT IMOVEL` AS at_imovel,
+            `Area Total` AS area_total,
+            FAIXA_AT AS faixa_at,
+            FAIXA_GU AS faixa_gu,
+            GU_FIXO AS gu_fixo,
+            GU_CALC AS gu_calc,
+            Aliquota_fixa AS aliquota_fixa,
+            Aliquota_calc AS aliquota_calc,
+            ITR_GU_FIXO AS itr_gu_fixo,
+            ITR_GU_CALC AS itr_gu_calc
+        FROM {TABLE_PATH}
+        WHERE UF = @uf
+    """
+  job_config = bigquery.QueryJobConfig(
+      query_parameters=[
+          bigquery.ScalarQueryParameter("uf", "STRING", uf_selecionada)
+      ]
+  )
+  return client.query(query, job_config=job_config).to_dataframe()
 
-    return resumo_uf, tabela_faixas
 
-# ==========================================
-# 4. EXECUÇÃO PRINCIPAL DO DASHBOARD
-# ==========================================
-try:
-    df = carregar_dados()
+# --- INTERFACE E BARRA LATERAL ---
+st.title("🌾 Painel Relatório ITR")
 
-    # --- BARRA LATERAL (FILTROS) ---
-    st.sidebar.header("🔍 Filtros de Pesquisa")
-    
-    # Filtro de UF
-    if "UF" in df.columns:
-        ufs = ["Todas"] + sorted(list(df["UF"].dropna().unique()))
-        uf_selecionada = st.sidebar.selectbox("Selecione a UF:", ufs)
-        if uf_selecionada != "Todas":
-            df = df[df["UF"] == uf_selecionada]
+lista_ufs = carregar_ufs()
+uf_selecionada = st.sidebar.selectbox("Selecione o Estado (UF):", lista_ufs)
 
-    # Filtro de Município
-    if "Municipio" in df.columns:
-        municipios = ["Todos"] + sorted(list(df["Municipio"].dropna().unique()))
-        municipio_selecionado = st.sidebar.selectbox("Selecione o Município:", municipios)
-        if municipio_selecionado != "Todos":
-            df = df[df["Municipio"] == municipio_selecionado]
+aba = st.sidebar.radio(
+    "Escolha o Relatório:",
+    [
+        "1. Resumo Geral por UF",
+        "2. Análise do Grau de Utilização (GU)",
+        "3. Comparativo de Alíquotas e Imposto",
+    ],
+)
 
-    # --- INDICADORES TOPO (KPIs) ---
+if uf_selecionada:
+  with st.spinner(f"Carregando dados de {uf_selecionada}..."):
+    df = carregar_dados_uf(uf_selecionada)
+
+  # --- RELATÓRIO 1: RESUMO GERAL ---
+  if aba == "1. Resumo Geral por UF":
+    st.header(f"📈 Relatório 1: Visão Geral - {uf_selecionada}")
+
     col1, col2, col3, col4 = st.columns(4)
-    with col1:
-        st.metric("Total de Imóveis", f"{len(df):,}".replace(",", "."))
-    with col2:
-        if "AT IMÓVEL" in df.columns:
-            st.metric("Área Total (ha)", f"{df['AT IMÓVEL'].sum():,.2f}".replace(",", "X").replace(".", ",").replace("X", "."))
-    with col3:
-        if "Alíquota_fixa" in df.columns:
-            st.metric("Média Alíquota Fixa", f"{df['Alíquota_fixa'].mean() * 100:.2f}%")
-    with col4:
-        if "Alíquota_calc" in df.columns:
-            st.metric("Média Alíquota Calc", f"{df['Alíquota_calc'].mean() * 100:.2f}%")
-
-    st.markdown("---")
-
-    # --- PROCESSAMENTO DAS VISÕES ---
-    resumo_uf, tabela_faixas = gerar_metricas_uf(df)
-
-    # --- ABA DE VISUALIZAÇÃO DA DISTRIBUIÇÃO ---
-    st.header("📊 Distribuição de Propriedades por UF e Área")
-
-    c1, c2 = st.columns([1, 2])
-    with c1:
-        st.subheader("Resumo por UF")
-        st.dataframe(resumo_uf, use_container_width=True, hide_index=True)
-
-    with c2:
-        st.subheader("Propriedades < 2 ha por UF")
-        st.bar_chart(resumo_uf.set_index('UF')['Qtd < 2 ha'])
-
-    st.markdown("---")
-
-    st.subheader("Número de Propriedades: UF por Faixa de Área (AT IMÓVEL)")
-    st.dataframe(tabela_faixas, use_container_width=True)
-
-    # Botão de download
-    st.download_button(
-        label="📥 Baixar Tabela por Faixas em CSV",
-        data=tabela_faixas.to_csv().encode('utf-8'),
-        file_name="propriedades_por_faixa_uf.csv",
-        mime="text/csv"
+    col1.metric("Total de Imóveis", f"{len(df):,}")
+    col2.metric("Municípios Atendidos", df["municipio"].nunique())
+    col3.metric("Área Total (ha)", f"{df['area_total'].sum():,.2f}")
+    col4.metric(
+        "ITR Calculado Total (R$)", f"R$ {df['itr_gu_calc'].sum():,.2f}"
     )
 
-except Exception as e:
-    st.error(f"⚠️ Ocorreu um erro ao carregar/processar os dados: {e}")
+    st.markdown("---")
+
+    # Ranking de Municípios por Arrecadação
+    top_muni = (
+        df.groupby("municipio")["itr_gu_calc"]
+        .sum()
+        .reset_index()
+        .sort_values(by="itr_gu_calc", ascending=False)
+        .head(10)
+    )
+
+    fig_muni = px.bar(
+        top_muni,
+        x="itr_gu_calc",
+        y="municipio",
+        orientation="h",
+        title="Top 10 Municípios com Maior ITR Calculado",
+        labels={"itr_gu_calc": "ITR Calculado (R$)", "municipio": "Município"},
+    )
+    st.plotly_chart(fig_muni, use_container_width=True)
+
+  # --- RELATÓRIO 2: ANÁLISE DE GRAU DE UTILIZAÇÃO ---
+  elif aba == "2. Análise do Grau de Utilização (GU)":
+    st.header(f"🚜 Relatório 2: Distribuição por Grau de Utilização (GU)")
+
+    col1, col2 = st.columns(2)
+
+    with col1:
+      gu_counts = df["faixa_gu"].value_counts().reset_index()
+      gu_counts.columns = ["Faixa GU", "Quantidade"]
+      fig_pie = px.pie(
+          gu_counts,
+          names="Faixa GU",
+          values="Quantidade",
+          title="Distribuição dos Imóveis por Faixa de GU",
+      )
+      st.plotly_chart(fig_pie, use_container_width=True)
+
+    with col2:
+      at_counts = df["faixa_at"].value_counts().reset_index()
+      at_counts.columns = ["Faixa Área Total", "Quantidade"]
+      fig_bar = px.bar(
+          at_counts,
+          x="Faixa Área Total",
+          y="Quantidade",
+          title="Distribuição dos Imóveis por Tamanho de Área (AT)",
+      )
+      st.plotly_chart(fig_bar, use_container_width=True)
+
+  # --- RELATÓRIO 3: COMPARATIVO DE ALÍQUOTAS ---
+  elif aba == "3. Comparativo de Alíquotas e Imposto":
+    st.header(f"💰 Relatório 3: Comparativo de Alíquotas (Fixo vs Calculado)")
+
+    col1, col2 = st.columns(2)
+    col1.metric("Média Alíquota Fixa", f"{df['aliquota_fixa'].mean():.2f}%")
+    col2.metric("Média Alíquota Calc", f"{df['aliquota_calc'].mean():.2f}%")
+
+    st.markdown("---")
+
+    fig_comp = px.scatter(
+        df.sample(min(1000, len(df))),
+        x="aliquota_fixa",
+        y="aliquota_calc",
+        color="faixa_at",
+        hover_data=["municipio"],
+        title="Dispersão: Alíquota Fixa vs Alíquota Calculada (Amostra 1.000)",
+        labels={
+            "aliquota_fixa": "Alíquota Fixa (%)",
+            "aliquota_calc": "Alíquota Calculada (%)",
+        },
+    )
+    st.plotly_chart(fig_comp, use_container_width=True)
+
+  # Tabela detalhada opcional no rodapé
+  with st.expander("Ver Tabela de Dados Detalhada"):
+    st.dataframe(df, use_container_width=True)
