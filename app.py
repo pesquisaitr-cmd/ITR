@@ -25,31 +25,32 @@ def carregar_ufs():
 
 @st.cache_data(ttl=3600)
 def carregar_dados_uf(uf_selecionada):
-  client = get_client()
-  query = f"""
-        SELECT 
-            UF,
-            `CODIGO DO MUNICIPIO (IBGE)` AS codigo_ibge,
-            Municipio AS municipio,
-            `AT IMOVEL` AS at_imovel,
-            `Area Total` AS area_total,
-            FAIXA_AT AS faixa_at,
-            FAIXA_GU AS faixa_gu,
-            GU_FIXO AS gu_fixo,
-            GU_CALC AS gu_calc,
-            Aliquota_fixa AS aliquota_fixa,
-            Aliquota_calc AS aliquota_calc,
-            ITR_GU_FIXO AS itr_gu_fixo,
-            ITR_GU_CALC AS itr_gu_calc
+    client = get_client()
+    query = f"""
+        SELECT
+            uf,
+            codigo_do_municipio_ibge AS codigo_ibge,
+            municipio,
+            at_imovel,
+            area_total,
+            faixa_at,
+            faixa_gu,
+            gu_fixo,
+            gu_calc,
+            aliquota_fixa,
+            aliquota_calc,
+            itr_gu_fixo,
+            itr_gu_calc
         FROM {TABLE_PATH}
-        WHERE UF = @uf
+        WHERE uf = @uf
     """
-  job_config = bigquery.QueryJobConfig(
-      query_parameters=[
-          bigquery.ScalarQueryParameter("uf", "STRING", uf_selecionada)
-      ]
-  )
-  return client.query(query, job_config=job_config).to_dataframe()
+
+    job_config = bigquery.QueryJobConfig(
+        query_parameters=[
+            bigquery.ScalarQueryParameter("uf", "STRING", uf_selecionada)
+        ]
+    )
+    return client.query(query, job_config=job_config).to_dataframe()
 
 
 # --- INTERFACE E BARRA LATERAL ---
