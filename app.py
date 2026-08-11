@@ -24,8 +24,26 @@ def carregar_ufs():
 
 
 @st.cache_data(ttl=3600)
-def carregar_dados_uf(uf_selecionada):
+def carregar_dados_uf(uf_selecionada, filtro_area):
     client = get_client()
+    
+    condicoes = []
+    query_parameters = []
+
+    # Se NÃO for Brasil, filtra pela UF específica selecionada
+    if uf_selecionada != "Brasil (Todos)":
+        condicoes.append("uf = @uf")
+        query_parameters.append(bigquery.ScalarQueryParameter("uf", "STRING", uf_selecionada))
+
+    # Filtro de área (< 2 ha)
+    if filtro_area == "Menor que 2 hectares (< 2 ha)":
+        condicoes.append("at_imovel < 2.0")
+
+    # Monta a cláusula WHERE dinamicamente
+    where_clause = ""
+    if condicoes:
+        where_clause = "WHERE " + " AND ".join(condicoes)
+
     query = f"""
         SELECT
             uf,
@@ -42,22 +60,22 @@ def carregar_dados_uf(uf_selecionada):
             itr_gu_fixo,
             itr_gu_calc
         FROM {TABLE_PATH}
-        WHERE uf = @uf
+        {where_clause}
     """
 
-    job_config = bigquery.QueryJobConfig(
-        query_parameters=[
-            bigquery.ScalarQueryParameter("uf", "STRING", uf_selecionada)
-        ]
-    )
+    job_config = bigquery.QueryJobConfig(query_parameters=query_parameters)
     return client.query(query, job_config=job_config).to_dataframe()
-
 
 # --- INTERFACE E BARRA LATERAL ---
 st.title("🌾 Painel Relatório ITR")
 
 lista_ufs = carregar_ufs()
 uf_selecionada = st.sidebar.selectbox("Selecione o Estado (UF):", lista_ufs)
+
+filtro_area = st.sidebar.radio(
+    "Tamanho da Propriedade:",
+    ["Todas as propriedades", "Menor que 2 hectares (< 2 ha)"]
+)
 
 aba = st.sidebar.radio(
     "Escolha o Relatório:",
@@ -69,8 +87,8 @@ aba = st.sidebar.radio(
 )
 
 if uf_selecionada:
-  with st.spinner(f"Carregando dados de {uf_selecionada}..."):
-    df = carregar_dados_uf(uf_selecionada)
+    with st.spinner(f"Carregando dados de {uf_selecionada}..."):
+        df = carregar_dados_uf(uf_selecionada, filtro_area)
 
   # --- RELATÓRIO 1: RESUMO GERAL ---
   if aba == "1. Resumo Geral por UF":
