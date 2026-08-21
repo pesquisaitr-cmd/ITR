@@ -191,6 +191,41 @@ def carregar_resumo_uf(contagem, tamanho, campo_arrecadacao):
 
 
 @st.cache_data(ttl=900, show_spinner=False)
+def carregar_sumario_municipio(uf, contagem, tamanho, campo_arrecadacao):
+    where, params = montar_filtros(uf, contagem, tamanho)
+    query = f"""
+        SELECT
+            CAST(uf AS STRING) AS uf,
+            CAST(municipio AS STRING) AS municipio,
+            COUNT(*) AS contagem,
+            COALESCE(SUM(area_total), 0) AS area_total,
+            COALESCE(SUM({campo_arrecadacao}), 0) AS arrecadacao
+        FROM {TABLE_PATH}
+        {where}
+        GROUP BY uf, municipio
+        ORDER BY arrecadacao DESC, municipio
+    """
+    return executar_consulta(query, params)
+
+
+@st.cache_data(ttl=900, show_spinner=False)
+def carregar_sumario_uf(uf, contagem, tamanho, campo_arrecadacao):
+    where, params = montar_filtros(uf, contagem, tamanho)
+    query = f"""
+        SELECT
+            CAST(uf AS STRING) AS uf,
+            COUNT(*) AS contagem,
+            COALESCE(SUM(area_total), 0) AS area_total,
+            COALESCE(SUM({campo_arrecadacao}), 0) AS arrecadacao
+        FROM {TABLE_PATH}
+        {where}
+        GROUP BY uf
+        ORDER BY arrecadacao DESC, uf
+    """
+    return executar_consulta(query, params)
+
+
+@st.cache_data(ttl=900, show_spinner=False)
 def carregar_detalhada(uf, contagem, tamanho, campo_arrecadacao):
     where, params = montar_filtros(uf, contagem, tamanho)
     query = f"""
@@ -381,16 +416,65 @@ if uf == "Brasil":
 # ============================================================
 # AMOSTRA DETALHADA
 # ============================================================
-with st.expander(f"Ver amostra detalhada — máximo de {LIMITE_TABELA_DETALHADA} registros"):
+with st.expander(f"Tabelas detalhadas e sumarizadas"):
     st.warning(
-        "A amostra é limitada para preservar o desempenho; os totais são calculados no BigQuery."
+        "A tabela por código IBGE é uma amostra limitada; os totais sumarizados são calculados no BigQuery."
     )
-    if st.button("Carregar tabela detalhada"):
-        with st.spinner("Carregando amostra..."):
+    if st.button("Carregar tabelas", key="carregar_tabelas"):
+        with st.spinner("Carregando tabelas no BigQuery..."):
             detalhada = carregar_detalhada(
                 uf, contagem, tamanho, campo_arrecadacao
             )
-        st.dataframe(detalhada, use_container_width=True, hide_index=True)
+            sumario_municipio = carregar_sumario_municipio(
+                uf, contagem, tamanho, campo_arrecadacao
+            )
+            sumario_uf = carregar_sumario_uf(
+                uf, contagem, tamanho, campo_arrecadacao
+            )
+
+        tab_ibge, tab_municipio, tab_uf = st.tabs(
+            ["Por código IBGE", "Por município", "Por UF"]
+        )
+        with tab_ibge:
+            st.caption(
+                f"Amostra de até {LIMITE_TABELA_DETALHADA} registros, mantendo a visualização original."
+            )
+            st.dataframe(detalhada, use_container_width=True, hide_index=True)
+
+        with tab_municipio:
+            tabela_municipio = sumario_municipio.copy()
+            tabela_municipio["contagem"] = tabela_municipio["contagem"].map(formatar_inteiro)
+            tabela_municipio["area_total"] = tabela_municipio["area_total"].map(
+                lambda x: formatar_decimal(valor_numerico(x))
+            )
+            tabela_municipio["arrecadacao"] = tabela_municipio["arrecadacao"].map(moeda)
+            tabela_municipio = tabela_municipio.rename(
+                columns={
+                    "uf": "UF",
+                    "municipio": "Município",
+                    "contagem": "Contagem",
+                    "area_total": "Área total (ha)",
+                    "arrecadacao": f"Arrecadação ({arrecadacao_label})",
+                }
+            )
+            st.dataframe(tabela_municipio, use_container_width=True, hide_index=True)
+
+        with tab_uf:
+            tabela_uf = sumario_uf.copy()
+            tabela_uf["contagem"] = tabela_uf["contagem"].map(formatar_inteiro)
+            tabela_uf["area_total"] = tabela_uf["area_total"].map(
+                lambda x: formatar_decimal(valor_numerico(x))
+            )
+            tabela_uf["arrecadacao"] = tabela_uf["arrecadacao"].map(moeda)
+            tabela_uf = tabela_uf.rename(
+                columns={
+                    "uf": "UF",
+                    "contagem": "Contagem",
+                    "area_total": "Área total (ha)",
+                    "arrecadacao": f"Arrecadação ({arrecadacao_label})",
+                }
+            )
+            st.dataframe(tabela_uf, use_container_width=True, hide_index=True)
 
 st.divider()
 st.caption("Dashboard ITR | BigQuery | filtros aplicados às métricas e aos cruzamentos")
