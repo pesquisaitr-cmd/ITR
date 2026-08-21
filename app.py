@@ -200,9 +200,7 @@ def carregar_detalhada(uf, contagem, tamanho, campo_arrecadacao):
             municipio,
             at_imovel,
             area_total,
-            faixa_at,
-            isencao,
-            faixa_gu,
+            Isencao,
             gu_fixo,
             gu_calc,
             itr_gu_fixo,
@@ -297,8 +295,13 @@ else:
         piv_contagem = cruzamento.pivot(
             index="faixa_at", columns="faixa_gu", values="contagem"
         ).reindex(index=ORDEM_FAIXA_AT, columns=ORDEM_FAIXA_GU).fillna(0)
+        piv_contagem.index = piv_contagem.index.astype(object)
+        piv_contagem.columns = piv_contagem.columns.astype(object)
         piv_contagem.index.name = "Faixa_AT"
         piv_contagem.columns.name = "Faixa_GU"
+        # Totais marginais: primeiro o total de cada linha e, depois, a linha total.
+        piv_contagem["Total"] = piv_contagem.sum(axis=1)
+        piv_contagem.loc["Total"] = piv_contagem.sum(axis=0)
         # Envia somente strings/valores simples ao frontend; Styler pode gerar
         # JSON inválido em algumas versões do Streamlit/Pandas.
         tabela_contagem = piv_contagem.astype(int).map(formatar_inteiro)
@@ -320,8 +323,14 @@ else:
         piv_arrecadacao = cruzamento.pivot(
             index="faixa_at", columns="faixa_gu", values="arrecadacao"
         ).reindex(index=ORDEM_FAIXA_AT, columns=ORDEM_FAIXA_GU).fillna(0)
+        piv_arrecadacao.index = piv_arrecadacao.index.astype(object)
+        piv_arrecadacao.columns = piv_arrecadacao.columns.astype(object)
         piv_arrecadacao.index.name = "Faixa_AT"
         piv_arrecadacao.columns.name = "Faixa_GU"
+        # Totais marginais: total da arrecadação por Faixa_AT, por Faixa_GU
+        # e total geral no canto inferior direito.
+        piv_arrecadacao["Total"] = piv_arrecadacao.sum(axis=1)
+        piv_arrecadacao.loc["Total"] = piv_arrecadacao.sum(axis=0)
         tabela_arrecadacao = piv_arrecadacao.map(moeda)
         st.dataframe(tabela_arrecadacao, use_container_width=True)
         fig = px.density_heatmap(
