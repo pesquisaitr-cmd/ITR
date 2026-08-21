@@ -105,6 +105,43 @@ def moeda(valor):
     return f"R$ {formatar_decimal(valor)}"
 
 
+# Ordem semântica das faixas. O BigQuery trata esses rótulos como texto,
+# portanto ORDER BY faixa_at/faixa_gu não garante a ordem numérica desejada.
+ORDEM_FAIXA_AT = [
+    "Até 50",
+    "50+ até 200",
+    "200+ até 500",
+    "500+ até 1.000",
+    "1.000+ até 5.000",
+    "Acima de 5.000",
+]
+ORDEM_FAIXA_GU = [
+    "Até 30",
+    "30+ até 50",
+    "50+ até 65",
+    "65+ até 80",
+    "80+",
+]
+
+
+def ordenar_faixas(df):
+    """Ordena Faixa_AT e Faixa_GU pela ordem numérica dos intervalos."""
+    df = df.copy()
+    if "faixa_at" in df.columns:
+        df["faixa_at"] = pd.Categorical(
+            df["faixa_at"].astype(str),
+            categories=ORDEM_FAIXA_AT,
+            ordered=True,
+        )
+    if "faixa_gu" in df.columns:
+        df["faixa_gu"] = pd.Categorical(
+            df["faixa_gu"].astype(str),
+            categories=ORDEM_FAIXA_GU,
+            ordered=True,
+        )
+    return df.sort_values(["faixa_at", "faixa_gu"], na_position="last")
+
+
 @st.cache_data(ttl=900, show_spinner=False)
 def carregar_resumo(uf, contagem, tamanho, campo_arrecadacao):
     where, params = montar_filtros(uf, contagem, tamanho)
@@ -134,7 +171,7 @@ def carregar_cruzamento(uf, contagem, tamanho, campo_arrecadacao):
         GROUP BY faixa_at, faixa_gu
         ORDER BY faixa_at, faixa_gu
     """
-    return executar_consulta(query, params)
+    return ordenar_faixas(executar_consulta(query, params))
 
 
 @st.cache_data(ttl=900, show_spinner=False)
@@ -163,8 +200,8 @@ def carregar_detalhada(uf, contagem, tamanho, campo_arrecadacao):
             municipio,
             at_imovel,
             area_total,
-            isencao,
             faixa_at,
+            isencao,
             faixa_gu,
             gu_fixo,
             gu_calc,
@@ -180,7 +217,7 @@ def carregar_detalhada(uf, contagem, tamanho, campo_arrecadacao):
 # ============================================================
 # SIDEBAR / FILTROS
 # ============================================================
-st.title("Dashboard de Análise do ITR - PROPRIEDADES")
+st.title("Dashboard de Análise do ITR")
 st.caption(
     "As métricas são calculadas no BigQuery conforme os filtros selecionados."
 )
@@ -242,7 +279,7 @@ if cruzamento.empty:
     st.info("Não foram encontrados dados para os filtros selecionados.")
 else:
     # Tabela analítica principal, com duas medidas para cada combinação.
-    tabela = cruzamento.copy()
+    tabela = ordenar_faixas(cruzamento.copy())
     tabela["arrecadacao"] = tabela["arrecadacao"].map(moeda)
     tabela["contagem"] = tabela["contagem"].map(formatar_inteiro)
     tabela = tabela.rename(
@@ -259,17 +296,19 @@ else:
     with tab_contagem:
         piv_contagem = cruzamento.pivot(
             index="faixa_at", columns="faixa_gu", values="contagem"
-        ).fillna(0)
+        ).reindex(index=ORDEM_FAIXA_AT, columns=ORDEM_FAIXA_GU).fillna(0)
         piv_contagem.index.name = "Faixa_AT"
-        st.dataframe(
-            piv_contagem.style.format(formatar_inteiro),
-            use_container_width=True,
-        )
+        piv_contagem.columns.name = "Faixa_GU"
+        # Envia somente strings/valores simples ao frontend; Styler pode gerar
+        # JSON inválido em algumas versões do Streamlit/Pandas.
+        tabela_contagem = piv_contagem.astype(int).map(formatar_inteiro)
+        st.dataframe(tabela_contagem, use_container_width=True)
         fig = px.density_heatmap(
             cruzamento,
             x="faixa_gu",
             y="faixa_at",
             z="contagem",
+            category_orders={"faixa_at": ORDEM_FAIXA_AT, "faixa_gu": ORDEM_FAIXA_GU},
             text_auto=True,
             color_continuous_scale="Blues",
             labels={"faixa_gu": "Faixa_GU", "faixa_at": "Faixa_AT", "contagem": "Contagem"},
@@ -280,17 +319,17 @@ else:
     with tab_arrecadacao:
         piv_arrecadacao = cruzamento.pivot(
             index="faixa_at", columns="faixa_gu", values="arrecadacao"
-        ).fillna(0)
+        ).reindex(index=ORDEM_FAIXA_AT, columns=ORDEM_FAIXA_GU).fillna(0)
         piv_arrecadacao.index.name = "Faixa_AT"
-        st.dataframe(
-            piv_arrecadacao.style.format(lambda x: moeda(x)),
-            use_container_width=True,
-        )
+        piv_arrecadacao.columns.name = "Faixa_GU"
+        tabela_arrecadacao = piv_arrecadacao.map(moeda)
+        st.dataframe(tabela_arrecadacao, use_container_width=True)
         fig = px.density_heatmap(
             cruzamento,
             x="faixa_gu",
             y="faixa_at",
             z="arrecadacao",
+            category_orders={"faixa_at": ORDEM_FAIXA_AT, "faixa_gu": ORDEM_FAIXA_GU},
             text_auto=".2s",
             color_continuous_scale="Greens",
             labels={"faixa_gu": "Faixa_GU", "faixa_at": "Faixa_AT", "arrecadacao": "Arrecadação"},
