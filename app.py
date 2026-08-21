@@ -371,20 +371,8 @@ st.write(
 if cruzamento.empty:
     st.info("Não foram encontrados dados para os filtros selecionados.")
 else:
-    # Tabela analítica principal, com duas medidas para cada combinação.
-    tabela = ordenar_faixas(cruzamento.copy())
-    tabela["arrecadacao"] = tabela["arrecadacao"].map(moeda)
-    tabela["contagem"] = tabela["contagem"].map(formatar_inteiro)
-    tabela = tabela.rename(
-        columns={
-            "faixa_at": "Faixa_AT",
-            "faixa_gu": "Faixa_GU",
-            "contagem": "Contagem",
-            "arrecadacao": f"Arrecadação ({arrecadacao_label})",
-        }
-    )
-    st.dataframe(tabela, use_container_width=True, hide_index=True)
-
+    # As tabelas abaixo são os cruzamentos principais. A tabela linear
+    # redundante foi removida para facilitar a leitura.
     tab_contagem, tab_arrecadacao = st.tabs(["Contagem", "Arrecadação"])
     with tab_contagem:
         piv_contagem = cruzamento.pivot(
