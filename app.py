@@ -194,16 +194,44 @@ def carregar_resumo_uf(contagem, tamanho, campo_arrecadacao):
 def carregar_sumario_municipio(uf, contagem, tamanho, campo_arrecadacao):
     where, params = montar_filtros(uf, contagem, tamanho)
     query = f"""
+        WITH base AS (
+            SELECT
+                CAST(uf AS STRING) AS uf,
+                codigo_do_municipio_ibge AS codigo_ibge,
+                CAST(municipio AS STRING) AS municipio,
+                area_total,
+                {campo_arrecadacao} AS arrecadacao
+            FROM {TABLE_PATH}
+            {where}
+        ),
+        areas_municipios AS (
+            SELECT
+                uf,
+                codigo_ibge,
+                ANY_VALUE(municipio) AS municipio,
+                ANY_VALUE(area_total) AS area_total
+            FROM base
+            GROUP BY uf, codigo_ibge
+        ),
+        metricas AS (
+            SELECT
+                uf,
+                codigo_ibge,
+                COUNT(*) AS contagem,
+                COALESCE(SUM(arrecadacao), 0) AS arrecadacao
+            FROM base
+            GROUP BY uf, codigo_ibge
+        )
         SELECT
-            CAST(uf AS STRING) AS uf,
-            CAST(municipio AS STRING) AS municipio,
-            COUNT(*) AS contagem,
-            COALESCE(SUM(area_total), 0) AS area_total,
-            COALESCE(SUM({campo_arrecadacao}), 0) AS arrecadacao
-        FROM {TABLE_PATH}
-        {where}
-        GROUP BY uf, municipio
-        ORDER BY arrecadacao DESC, municipio
+            m.uf,
+            a.municipio,
+            m.contagem,
+            COALESCE(a.area_total, 0) AS area_total,
+            m.arrecadacao
+        FROM metricas AS m
+        LEFT JOIN areas_municipios AS a
+            USING (uf, codigo_ibge)
+        ORDER BY m.arrecadacao DESC, a.municipio
     """
     return executar_consulta(query, params)
 
@@ -212,15 +240,47 @@ def carregar_sumario_municipio(uf, contagem, tamanho, campo_arrecadacao):
 def carregar_sumario_uf(uf, contagem, tamanho, campo_arrecadacao):
     where, params = montar_filtros(uf, contagem, tamanho)
     query = f"""
+        WITH base AS (
+            SELECT
+                CAST(uf AS STRING) AS uf,
+                codigo_do_municipio_ibge AS codigo_ibge,
+                CAST(municipio AS STRING) AS municipio,
+                area_total,
+                {campo_arrecadacao} AS arrecadacao
+            FROM {TABLE_PATH}
+            {where}
+        ),
+        areas_municipios AS (
+            SELECT
+                uf,
+                codigo_ibge,
+                ANY_VALUE(area_total) AS area_total
+            FROM base
+            GROUP BY uf, codigo_ibge
+        ),
+        metricas_uf AS (
+            SELECT
+                uf,
+                COUNT(*) AS contagem,
+                COALESCE(SUM(arrecadacao), 0) AS arrecadacao
+            FROM base
+            GROUP BY uf
+        ),
+        areas_uf AS (
+            SELECT
+                uf,
+                COALESCE(SUM(area_total), 0) AS area_total
+            FROM areas_municipios
+            GROUP BY uf
+        )
         SELECT
-            CAST(uf AS STRING) AS uf,
-            COUNT(*) AS contagem,
-            COALESCE(SUM(area_total), 0) AS area_total,
-            COALESCE(SUM({campo_arrecadacao}), 0) AS arrecadacao
-        FROM {TABLE_PATH}
-        {where}
-        GROUP BY uf
-        ORDER BY arrecadacao DESC, uf
+            m.uf,
+            m.contagem,
+            COALESCE(a.area_total, 0) AS area_total,
+            m.arrecadacao
+        FROM metricas_uf AS m
+        LEFT JOIN areas_uf AS a USING (uf)
+        ORDER BY m.arrecadacao DESC, m.uf
     """
     return executar_consulta(query, params)
 
