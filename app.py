@@ -93,7 +93,7 @@ def montar_filtros(uf, municipio, contagem, tamanho):
         parametros.append(
             bigquery.ScalarQueryParameter("area_maxima", "FLOAT64", 0.5)
         )
-    elif tamanho == "Menor que 2 hectares":
+    elif tamanho == "Até 2 hectares":
         condicoes.append("at_imovel <= @area_maxima")
         parametros.append(
             bigquery.ScalarQueryParameter("area_maxima", "FLOAT64", 2.0)
