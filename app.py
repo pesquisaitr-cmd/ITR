@@ -335,7 +335,7 @@ def carregar_detalhada(uf, municipio, contagem, tamanho, campo_arrecadacao):
 # ============================================================
 # SIDEBAR / FILTROS
 # ============================================================
-st.title("Dashboard de Análise do ITR - PROPRIEDADES")
+st.title("Dashboard Análise do ITR - PROPRIEDADES")
 st.caption(
     "As métricas são calculadas conforme os filtros selecionados."
 )
