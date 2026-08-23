@@ -335,9 +335,9 @@ def carregar_detalhada(uf, municipio, contagem, tamanho, campo_arrecadacao):
 # ============================================================
 # SIDEBAR / FILTROS
 # ============================================================
-st.title("Dashboard de Análise do ITR")
+st.title("Dashboard de Análise do ITR - PROPRIEDADES")
 st.caption(
-    "As métricas são calculadas no BigQuery conforme os filtros selecionados."
+    "As métricas são calculadas conforme os filtros selecionados."
 )
 
 with st.sidebar:
@@ -353,15 +353,15 @@ with st.sidebar:
     campo_arrecadacao = ARRECADACOES[arrecadacao_label]
 
     contagem = st.selectbox(
-        "Contagem",
-        ["Todos", "Não Isentos", "Isentos"],
+        "Elegíveis",
+        ["Todos", "Pagantes", "Isentos"],
         help="Define a população incluída nas contagens e somas.",
     )
 
     # 2. Nova opção incluída no filtro de Tamanho
     tamanho = st.radio(
         "Tamanho da Propriedade",
-        ["Todas", "Menos que 0,5 hectare", "Menor que 2 hectares"],
+        ["Todas", "Menos que 0,5 hectare", "Até 2 hectares"],
     )
 
     uf = st.selectbox("Selecione o Estado", carregar_ufs())
