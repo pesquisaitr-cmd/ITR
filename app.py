@@ -24,7 +24,7 @@ ARRECADACOES = {
     "ITR_GU_CALC": "itr_gu_calc",
 }
 ISENCOES = {
-    "Não Isentos": 0,
+    "Pagantes": 0,
     "Isentos": 1,
 }
 
