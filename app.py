@@ -19,8 +19,6 @@ TABLE_ID = "itr_pronto"
 TABLE_PATH = f"`{PROJECT_ID}.{DATASET_ID}.{TABLE_ID}`"
 LIMITE_TABELA_DETALHADA = 500
 
-# Os valores dos campos abaixo são definidos pelo código, e não pelo usuário;
-# portanto, são seguros para interpolação nas consultas SQL.
 ARRECADACOES = {
     "ITR_GU_FIXO": "itr_gu_fixo",
     "ITR_GU_CALC": "itr_gu_calc",
@@ -56,7 +54,27 @@ def carregar_ufs():
     return ["Brasil"] + df["uf"].dropna().astype(str).tolist()
 
 
-def montar_filtros(uf, contagem, tamanho):
+@st.cache_data(ttl=3600, show_spinner=False)
+def carregar_municipios(uf):
+    where_clause = ""
+    params = []
+    if uf != "Brasil":
+        where_clause = "WHERE CAST(uf AS STRING) = @uf AND municipio IS NOT NULL"
+        params.append(bigquery.ScalarQueryParameter("uf", "STRING", uf))
+    else:
+        where_clause = "WHERE municipio IS NOT NULL"
+
+    query = f"""
+        SELECT DISTINCT CAST(municipio AS STRING) AS municipio
+        FROM {TABLE_PATH}
+        {where_clause}
+        ORDER BY municipio
+    """
+    df = executar_consulta(query, params)
+    return ["Todos"] + df["municipio"].dropna().astype(str).tolist()
+
+
+def montar_filtros(uf, municipio, contagem, tamanho):
     """Gera WHERE e parâmetros para todos os relatórios."""
     condicoes = []
     parametros = []
@@ -65,8 +83,17 @@ def montar_filtros(uf, contagem, tamanho):
         condicoes.append("CAST(uf AS STRING) = @uf")
         parametros.append(bigquery.ScalarQueryParameter("uf", "STRING", uf))
 
-    # O requisito é AT IMOVEL <= 2; mantém nulos fora do recorte.
-    if tamanho == "Menor que 2 hectares":
+    if municipio != "Todos":
+        condicoes.append("CAST(municipio AS STRING) = @municipio")
+        parametros.append(bigquery.ScalarQueryParameter("municipio", "STRING", municipio))
+
+    # Atualizado para contemplar a opção < 0,5 ha
+    if tamanho == "Menos que 0,5 hectare":
+        condicoes.append("at_imovel < @area_maxima")
+        parametros.append(
+            bigquery.ScalarQueryParameter("area_maxima", "FLOAT64", 0.5)
+        )
+    elif tamanho == "Menor que 2 hectares":
         condicoes.append("at_imovel <= @area_maxima")
         parametros.append(
             bigquery.ScalarQueryParameter("area_maxima", "FLOAT64", 2.0)
@@ -105,8 +132,6 @@ def moeda(valor):
     return f"R$ {formatar_decimal(valor)}"
 
 
-# Ordem semântica das faixas. O BigQuery trata esses rótulos como texto,
-# portanto ORDER BY faixa_at/faixa_gu não garante a ordem numérica desejada.
 ORDEM_FAIXA_AT = [
     "Até 50",
     "50+ até 200",
@@ -143,8 +168,8 @@ def ordenar_faixas(df):
 
 
 @st.cache_data(ttl=900, show_spinner=False)
-def carregar_resumo(uf, contagem, tamanho, campo_arrecadacao):
-    where, params = montar_filtros(uf, contagem, tamanho)
+def carregar_resumo(uf, municipio, contagem, tamanho, campo_arrecadacao):
+    where, params = montar_filtros(uf, municipio, contagem, tamanho)
     query = f"""
         SELECT
             COUNT(*) AS quantidade,
@@ -158,8 +183,8 @@ def carregar_resumo(uf, contagem, tamanho, campo_arrecadacao):
 
 
 @st.cache_data(ttl=900, show_spinner=False)
-def carregar_cruzamento(uf, contagem, tamanho, campo_arrecadacao):
-    where, params = montar_filtros(uf, contagem, tamanho)
+def carregar_cruzamento(uf, municipio, contagem, tamanho, campo_arrecadacao):
+    where, params = montar_filtros(uf, municipio, contagem, tamanho)
     query = f"""
         SELECT
             CAST(faixa_at AS STRING) AS faixa_at,
@@ -176,7 +201,7 @@ def carregar_cruzamento(uf, contagem, tamanho, campo_arrecadacao):
 
 @st.cache_data(ttl=900, show_spinner=False)
 def carregar_resumo_uf(contagem, tamanho, campo_arrecadacao):
-    where, params = montar_filtros("Brasil", contagem, tamanho)
+    where, params = montar_filtros("Brasil", "Todos", contagem, tamanho)
     query = f"""
         SELECT
             CAST(uf AS STRING) AS uf,
@@ -191,8 +216,8 @@ def carregar_resumo_uf(contagem, tamanho, campo_arrecadacao):
 
 
 @st.cache_data(ttl=900, show_spinner=False)
-def carregar_sumario_municipio(uf, contagem, tamanho, campo_arrecadacao):
-    where, params = montar_filtros(uf, contagem, tamanho)
+def carregar_sumario_municipio(uf, municipio, contagem, tamanho, campo_arrecadacao):
+    where, params = montar_filtros(uf, municipio, contagem, tamanho)
     query = f"""
         WITH base AS (
             SELECT
@@ -237,8 +262,8 @@ def carregar_sumario_municipio(uf, contagem, tamanho, campo_arrecadacao):
 
 
 @st.cache_data(ttl=900, show_spinner=False)
-def carregar_sumario_uf(uf, contagem, tamanho, campo_arrecadacao):
-    where, params = montar_filtros(uf, contagem, tamanho)
+def carregar_sumario_uf(uf, municipio, contagem, tamanho, campo_arrecadacao):
+    where, params = montar_filtros(uf, municipio, contagem, tamanho)
     query = f"""
         WITH base AS (
             SELECT
@@ -286,8 +311,8 @@ def carregar_sumario_uf(uf, contagem, tamanho, campo_arrecadacao):
 
 
 @st.cache_data(ttl=900, show_spinner=False)
-def carregar_detalhada(uf, contagem, tamanho, campo_arrecadacao):
-    where, params = montar_filtros(uf, contagem, tamanho)
+def carregar_detalhada(uf, municipio, contagem, tamanho, campo_arrecadacao):
+    where, params = montar_filtros(uf, municipio, contagem, tamanho)
     query = f"""
         SELECT
             uf,
@@ -322,7 +347,7 @@ with st.sidebar:
         "Arrecadação",
         list(ARRECADACOES.keys()),
         format_func=lambda x: f"{x} — " + (
-            "GU fixo" if x == "ITR_GU_FIXO" else "GU calculado"
+            "GU fixo" if x == "ITR_GU_FIXO" else "GU calculated"
         ),
     )
     campo_arrecadacao = ARRECADACOES[arrecadacao_label]
@@ -332,21 +357,28 @@ with st.sidebar:
         ["Todos", "Não Isentos", "Isentos"],
         help="Define a população incluída nas contagens e somas.",
     )
+
+    # 2. Nova opção incluída no filtro de Tamanho
     tamanho = st.radio(
         "Tamanho da Propriedade",
-        ["Todas", "Menor que 2 hectares"],
+        ["Todas", "Menos que 0,5 hectare", "Menor que 2 hectares"],
     )
+
     uf = st.selectbox("Selecione o Estado", carregar_ufs())
+
+    # 1. Filtro "Por Município"
+    municipios_disponiveis = carregar_municipios(uf)
+    municipio = st.selectbox("Por Município", municipios_disponiveis)
 
 st.markdown(
     f"**Filtros ativos:** Arrecadação = `{arrecadacao_label}` · "
-    f"Contagem = `{contagem}` · Tamanho = `{tamanho}` · Estado = `{uf}`"
+    f"Contagem = `{contagem}` · Tamanho = `{tamanho}` · Estado = `{uf}` · Município = `{municipio}`"
 )
 
 with st.spinner("Consultando o BigQuery..."):
-    resumo = carregar_resumo(uf, contagem, tamanho, campo_arrecadacao)
+    resumo = carregar_resumo(uf, municipio, contagem, tamanho, campo_arrecadacao)
     cruzamento = carregar_cruzamento(
-        uf, contagem, tamanho, campo_arrecadacao
+        uf, municipio, contagem, tamanho, campo_arrecadacao
     )
 
 # ============================================================
@@ -371,8 +403,6 @@ st.write(
 if cruzamento.empty:
     st.info("Não foram encontrados dados para os filtros selecionados.")
 else:
-    # As tabelas abaixo são os cruzamentos principais. A tabela linear
-    # redundante foi removida para facilitar a leitura.
     tab_contagem, tab_arrecadacao = st.tabs(["Contagem", "Arrecadação"])
     with tab_contagem:
         piv_contagem = cruzamento.pivot(
@@ -382,11 +412,8 @@ else:
         piv_contagem.columns = piv_contagem.columns.astype(object)
         piv_contagem.index.name = "Faixa_AT"
         piv_contagem.columns.name = "Faixa_GU"
-        # Totais marginais: primeiro o total de cada linha e, depois, a linha total.
         piv_contagem["Total"] = piv_contagem.sum(axis=1)
         piv_contagem.loc["Total"] = piv_contagem.sum(axis=0)
-        # Envia somente strings/valores simples ao frontend; Styler pode gerar
-        # JSON inválido em algumas versões do Streamlit/Pandas.
         tabela_contagem = piv_contagem.astype(int).map(formatar_inteiro)
         st.dataframe(tabela_contagem, use_container_width=True)
         fig = px.density_heatmap(
@@ -410,8 +437,6 @@ else:
         piv_arrecadacao.columns = piv_arrecadacao.columns.astype(object)
         piv_arrecadacao.index.name = "Faixa_AT"
         piv_arrecadacao.columns.name = "Faixa_GU"
-        # Totais marginais: total da arrecadação por Faixa_AT, por Faixa_GU
-        # e total geral no canto inferior direito.
         piv_arrecadacao["Total"] = piv_arrecadacao.sum(axis=1)
         piv_arrecadacao.loc["Total"] = piv_arrecadacao.sum(axis=0)
         tabela_arrecadacao = piv_arrecadacao.map(moeda)
@@ -432,7 +457,7 @@ else:
 # ============================================================
 # VISÃO POR UF — útil especialmente quando Brasil está selecionado
 # ============================================================
-if uf == "Brasil":
+if uf == "Brasil" and municipio == "Todos":
     st.divider()
     st.header("Brasil — comparação entre as UFs")
     por_uf = carregar_resumo_uf(contagem, tamanho, campo_arrecadacao)
@@ -462,22 +487,26 @@ if uf == "Brasil":
             st.plotly_chart(fig, use_container_width=True)
 
 # ============================================================
-# AMOSTRA DETALHADA
+# AMOSTRA DETALHADA E SUMARIZADA
 # ============================================================
-with st.expander(f"Tabelas detalhadas e sumarizadas"):
+with st.expander("Tabelas detalhadas e sumarizadas"):
     st.warning(
         "A tabela por código IBGE é uma amostra limitada; os totais sumarizados são calculados no BigQuery."
     )
     if st.button("Carregar tabelas", key="carregar_tabelas"):
         with st.spinner("Carregando tabelas no BigQuery..."):
             detalhada = carregar_detalhada(
-                uf, contagem, tamanho, campo_arrecadacao
+                uf, municipio, contagem, tamanho, campo_arrecadacao
             )
             sumario_municipio = carregar_sumario_municipio(
-                uf, contagem, tamanho, campo_arrecadacao
+                uf, municipio, contagem, tamanho, campo_arrecadacao
             )
-            sumario_uf = carregar_sumario_uf(
-                uf, contagem, tamanho, campo_arrecadacao
+            
+            # Se houver município selecionado, não consulta a aba de UF
+            sumario_uf = (
+                pd.DataFrame()
+                if municipio != "Todos"
+                else carregar_sumario_uf(uf, municipio, contagem, tamanho, campo_arrecadacao)
             )
 
         tab_ibge, tab_municipio, tab_uf = st.tabs(
@@ -507,22 +536,26 @@ with st.expander(f"Tabelas detalhadas e sumarizadas"):
             )
             st.dataframe(tabela_municipio, use_container_width=True, hide_index=True)
 
+        # 1. Regra para esvaziar a 3ª aba quando um município é selecionado
         with tab_uf:
-            tabela_uf = sumario_uf.copy()
-            tabela_uf["contagem"] = tabela_uf["contagem"].map(formatar_inteiro)
-            tabela_uf["area_total"] = tabela_uf["area_total"].map(
-                lambda x: formatar_decimal(valor_numerico(x))
-            )
-            tabela_uf["arrecadacao"] = tabela_uf["arrecadacao"].map(moeda)
-            tabela_uf = tabela_uf.rename(
-                columns={
-                    "uf": "UF",
-                    "contagem": "Contagem",
-                    "area_total": "Área total (ha)",
-                    "arrecadacao": f"Arrecadação ({arrecadacao_label})",
-                }
-            )
-            st.dataframe(tabela_uf, use_container_width=True, hide_index=True)
+            if municipio != "Todos":
+                st.info("Aba indisponível quando um município específico está selecionado.")
+            else:
+                tabela_uf = sumario_uf.copy()
+                tabela_uf["contagem"] = tabela_uf["contagem"].map(formatar_inteiro)
+                tabela_uf["area_total"] = tabela_uf["area_total"].map(
+                    lambda x: formatar_decimal(valor_numerico(x))
+                )
+                tabela_uf["arrecadacao"] = tabela_uf["arrecadacao"].map(moeda)
+                tabela_uf = tabela_uf.rename(
+                    columns={
+                        "uf": "UF",
+                        "contagem": "Contagem",
+                        "area_total": "Área total (ha)",
+                        "arrecadacao": f"Arrecadação ({arrecadacao_label})",
+                    }
+                )
+                st.dataframe(tabela_uf, use_container_width=True, hide_index=True)
 
 st.divider()
 st.caption("Dashboard ITR | BigQuery | filtros aplicados às métricas e aos cruzamentos")
