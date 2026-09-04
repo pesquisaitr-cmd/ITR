@@ -2,8 +2,6 @@ import pandas as pd
 import plotly.express as px
 import streamlit as st
 from google.cloud import bigquery
-
-
 # ============================================================
 # CONFIGURAÇÃO
 # ============================================================
@@ -28,11 +26,9 @@ ISENCOES = {
     "Isentos": 1,
 }
 
-
 @st.cache_resource
 def get_client():
     return bigquery.Client(project=PROJECT_ID)
-
 
 def executar_consulta(query, query_parameters=None):
     client = get_client()
@@ -40,7 +36,6 @@ def executar_consulta(query, query_parameters=None):
         query_parameters=query_parameters or []
     )
     return client.query(query, job_config=job_config).to_dataframe()
-
 
 @st.cache_data(ttl=3600, show_spinner=False)
 def carregar_ufs():
