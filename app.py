@@ -18,8 +18,8 @@ TABLE_PATH = f"`{PROJECT_ID}.{DATASET_ID}.{TABLE_ID}`"
 LIMITE_TABELA_DETALHADA = 500
 
 ARRECADACOES = {
-    "ITR_GU_FIXO": "itr_gu_fixo",
-    "ITR_GU_CALC": "itr_gu_calc",
+    "ITR_GU_FIXO": "GREATEST(itr_gu_fixo, 10,00)",
+    "ITR_GU_CALC": "GREATEST(itr_gu_calc, 10,00)",
 }
 ISENCOES = {
     "Pagantes": 0,
