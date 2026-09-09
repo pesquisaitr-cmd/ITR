@@ -1,3 +1,4 @@
+import numpy as np
 import pandas as pd
 import plotly.express as px
 import streamlit as st
@@ -127,6 +128,17 @@ def formatar_decimal(valor, casas=2):
 
 def moeda(valor):
     return f"R$ {formatar_decimal(valor)}"
+
+def formatar_texto_heatmap(val):
+    if val >= 1e9:
+        return f"R$ {val / 1e9:.1f}B"
+    elif val >= 1e6:
+        return f"R$ {val / 1e6:.0f}M"
+    elif val >= 1e3:
+        return f"R$ {val / 1e3:.0f}K"
+    elif val > 0:
+        return f"R$ {val:.0f}"
+    return "R$ 0"
 
 def ordenar_faixas(df):
     df = df.copy()
@@ -366,7 +378,7 @@ else:
 st.divider()
 
 # ============================================================
-# CRUZAMENTOS 2x2 - FAIXA_AT x FAIXA_GU (CORRIGIDO VIA PX.IMSHOW)
+# CRUZAMENTOS 2x2 - FAIXA_AT x FAIXA_GU
 # ============================================================
 st.header("Cruzamentos 2 × 2 — Faixa_AT × Faixa_GU")
 st.write("Visão detalhada do cruzamento de faixas de área e grau de utilização.")
@@ -392,7 +404,6 @@ else:
         piv_cont_tabela.loc["Total"] = piv_cont_tabela.sum(axis=0)
         st.dataframe(piv_cont_tabela.astype(int).map(formatar_inteiro), use_container_width=True)
 
-        # Heatmap nativo seguro via px.imshow
         fig_cont = px.imshow(
             piv_contagem,
             labels=dict(x="Faixa_GU", y="Faixa_AT", color="Contagem"),
@@ -405,7 +416,7 @@ else:
         fig_cont.update_layout(height=480, margin=dict(l=20, r=20, t=30, b=20))
         st.plotly_chart(fig_cont, use_container_width=True)
 
-    # ------------------ ARRECADAÇÃO ------------------
+    # ------------------ ARRECADAÇÃO (LOG10 + TEXTO PT-BR) ------------------
     with tab_arrecadacao:
         piv_arrecadacao = (
             cruzamento.pivot(index="faixa_at", columns="faixa_gu", values="arrecadacao")
@@ -421,17 +432,33 @@ else:
         piv_arr_tabela.loc["Total"] = piv_arr_tabela.sum(axis=0)
         st.dataframe(piv_arr_tabela.map(moeda), use_container_width=True)
 
-        # Heatmap nativo seguro via px.imshow
+        # Matriz de texto formatada em R$ M / R$ B
+        matriz_texto = piv_arrecadacao.map(formatar_texto_heatmap).values
+
+        # Escala logarítmica para equilibrar as cores contra o outlier de 45B
+        piv_log = np.log10(piv_arrecadacao + 1)
+
         fig_arr = px.imshow(
-            piv_arrecadacao,
-            labels=dict(x="Faixa_GU", y="Faixa_AT", color="Arrecadação (R$)"),
+            piv_log,
+            labels=dict(x="Faixa_GU", y="Faixa_AT"),
             x=piv_arrecadacao.columns,
             y=piv_arrecadacao.index,
             color_continuous_scale="Greens",
-            text_auto=".2s",
+            text_auto=False,
             aspect="auto",
         )
-        fig_arr.update_layout(height=480, margin=dict(l=20, r=20, t=30, b=20))
+
+        fig_arr.update_traces(
+            text=matriz_texto,
+            texttemplate="%{text}",
+            textfont=dict(size=12),
+        )
+
+        fig_arr.update_layout(
+            coloraxis_showscale=False,
+            height=480,
+            margin=dict(l=20, r=20, t=30, b=20),
+        )
         st.plotly_chart(fig_arr, use_container_width=True)
 
 # ============================================================
