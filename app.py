@@ -2,6 +2,7 @@ import pandas as pd
 import plotly.express as px
 import streamlit as st
 from google.cloud import bigquery
+
 # ============================================================
 # CONFIGURAÇÃO
 # ============================================================
@@ -26,9 +27,11 @@ ISENCOES = {
     "Isentos": 1,
 }
 
+
 @st.cache_resource
 def get_client():
     return bigquery.Client(project=PROJECT_ID)
+
 
 def executar_consulta(query, query_parameters=None):
     client = get_client()
@@ -36,6 +39,7 @@ def executar_consulta(query, query_parameters=None):
         query_parameters=query_parameters or []
     )
     return client.query(query, job_config=job_config).to_dataframe()
+
 
 @st.cache_data(ttl=3600, show_spinner=False)
 def carregar_ufs():
@@ -80,7 +84,9 @@ def montar_filtros(uf, municipio, contagem, tamanho):
 
     if municipio != "Todos":
         condicoes.append("CAST(municipio AS STRING) = @municipio")
-        parametros.append(bigquery.ScalarQueryParameter("municipio", "STRING", municipio))
+        parametros.append(
+            bigquery.ScalarQueryParameter("municipio", "STRING", municipio)
+        )
 
     if tamanho == "Menos que 0,5 hectare":
         condicoes.append("at_imovel < @area_maxima")
@@ -348,9 +354,7 @@ def carregar_detalhada(uf, municipio, contagem, tamanho, campo_arrecadacao):
 # SIDEBAR / FILTROS
 # ============================================================
 st.title("Dashboard Análise do ITR - PROPRIEDADES")
-st.caption(
-    "As métricas são calculadas conforme os filtros selecionados."
-)
+st.caption("As métricas são calculadas conforme os filtros selecionados.")
 
 with st.sidebar:
     st.header("Filtros")
@@ -358,9 +362,8 @@ with st.sidebar:
     arrecadacao_label = st.selectbox(
         "Arrecadação",
         list(ARRECADACOES.keys()),
-        format_func=lambda x: f"{x} — " + (
-            "GU fixo" if x == "ITR_GU_FIXO" else "GU calculated"
-        ),
+        format_func=lambda x: f"{x} — "
+        + ("GU fixo" if x == "ITR_GU_FIXO" else "GU calculated"),
     )
     campo_arrecadacao = ARRECADACOES[arrecadacao_label]
 
@@ -386,7 +389,9 @@ st.markdown(
 )
 
 with st.spinner("Consultando o BigQuery..."):
-    resumo = carregar_resumo(uf, municipio, contagem, tamanho, campo_arrecadacao)
+    resumo = carregar_resumo(
+        uf, municipio, contagem, tamanho, campo_arrecadacao
+    )
     cruzamento = carregar_cruzamento(
         uf, municipio, contagem, tamanho, campo_arrecadacao
     )
@@ -400,7 +405,9 @@ with st.spinner("Consultando o BigQuery..."):
 col1, col2, col3, col4 = st.columns(4)
 col1.metric("Contagem de imóveis", formatar_inteiro(resumo["quantidade"]))
 col2.metric("Municípios", formatar_inteiro(resumo["municipios"]))
-col3.metric("Área total (ha)", formatar_decimal(valor_numerico(resumo["area_total"])))
+col3.metric(
+    "Área total (ha)", formatar_decimal(valor_numerico(resumo["area_total"]))
+)
 col4.metric(
     f"Arrecadação — {arrecadacao_label}",
     moeda(valor_numerico(resumo["arrecadacao"])),
@@ -417,16 +424,26 @@ st.write(
 )
 
 if cruzamento_uf_at.empty:
-    st.info("Não foram encontrados dados para a tabela UF × Faixa_AT com os filtros atuais.")
+    st.info(
+        "Não foram encontrados dados para a tabela UF × Faixa_AT com os filtros atuais."
+    )
 else:
-    tab_matriz_contagem, tab_matriz_arrecadacao = st.tabs(["Contagem", "Arrecadação"])
+    tab_matriz_contagem, tab_matriz_arrecadacao = st.tabs(
+        ["Contagem", "Arrecadação"]
+    )
 
-    cols_existentes_at = [c for c in ORDEM_FAIXA_AT if c in cruzamento_uf_at["faixa_at"].unique()]
+    cols_existentes_at = [
+        c for c in ORDEM_FAIXA_AT if c in cruzamento_uf_at["faixa_at"].unique()
+    ]
 
     with tab_matriz_contagem:
-        piv_uf_cont = cruzamento_uf_at.pivot(
-            index="uf", columns="faixa_at", values="contagem"
-        ).reindex(columns=cols_existentes_at).fillna(0)
+        piv_uf_cont = (
+            cruzamento_uf_at.pivot(
+                index="uf", columns="faixa_at", values="contagem"
+            )
+            .reindex(columns=cols_existentes_at)
+            .fillna(0)
+        )
 
         piv_uf_cont["TOTAL"] = piv_uf_cont.sum(axis=1)
         piv_uf_cont.loc["TOTAL"] = piv_uf_cont.sum(axis=0)
@@ -436,9 +453,13 @@ else:
         st.dataframe(tabela_uf_cont_fmt, use_container_width=True)
 
     with tab_matriz_arrecadacao:
-        piv_uf_arr = cruzamento_uf_at.pivot(
-            index="uf", columns="faixa_at", values="arrecadacao"
-        ).reindex(columns=cols_existentes_at).fillna(0)
+        piv_uf_arr = (
+            cruzamento_uf_at.pivot(
+                index="uf", columns="faixa_at", values="arrecadacao"
+            )
+            .reindex(columns=cols_existentes_at)
+            .fillna(0)
+        )
 
         piv_uf_arr["TOTAL"] = piv_uf_arr.sum(axis=1)
         piv_uf_arr.loc["TOTAL"] = piv_uf_arr.sum(axis=0)
@@ -459,9 +480,13 @@ if cruzamento.empty:
 else:
     tab_contagem, tab_arrecadacao = st.tabs(["Contagem", "Arrecadação"])
     with tab_contagem:
-        piv_contagem = cruzamento.pivot(
-            index="faixa_at", columns="faixa_gu", values="contagem"
-        ).reindex(index=ORDEM_FAIXA_AT, columns=ORDEM_FAIXA_GU).fillna(0)
+        piv_contagem = (
+            cruzamento.pivot(
+                index="faixa_at", columns="faixa_gu", values="contagem"
+            )
+            .reindex(index=ORDEM_FAIXA_AT, columns=ORDEM_FAIXA_GU)
+            .fillna(0)
+        )
         piv_contagem.index = piv_contagem.index.astype(object)
         piv_contagem.columns = piv_contagem.columns.astype(object)
         piv_contagem.index.name = "Faixa_AT"
@@ -475,18 +500,29 @@ else:
             x="faixa_gu",
             y="faixa_at",
             z="contagem",
-            category_orders={"faixa_at": ORDEM_FAIXA_AT, "faixa_gu": ORDEM_FAIXA_GU},
+            category_orders={
+                "faixa_at": ORDEM_FAIXA_AT,
+                "faixa_gu": ORDEM_FAIXA_GU,
+            },
             text_auto=True,
             color_continuous_scale="Blues",
-            labels={"faixa_gu": "Faixa_GU", "faixa_at": "Faixa_AT", "contagem": "Contagem"},
+            labels={
+                "faixa_gu": "Faixa_GU",
+                "faixa_at": "Faixa_AT",
+                "contagem": "Contagem",
+            },
         )
         fig.update_layout(height=500)
         st.plotly_chart(fig, use_container_width=True)
 
     with tab_arrecadacao:
-        piv_arrecadacao = cruzamento.pivot(
-            index="faixa_at", columns="faixa_gu", values="arrecadacao"
-        ).reindex(index=ORDEM_FAIXA_AT, columns=ORDEM_FAIXA_GU).fillna(0)
+        piv_arrecadacao = (
+            cruzamento.pivot(
+                index="faixa_at", columns="faixa_gu", values="arrecadacao"
+            )
+            .reindex(index=ORDEM_FAIXA_AT, columns=ORDEM_FAIXA_GU)
+            .fillna(0)
+        )
         piv_arrecadacao.index = piv_arrecadacao.index.astype(object)
         piv_arrecadacao.columns = piv_arrecadacao.columns.astype(object)
         piv_arrecadacao.index.name = "Faixa_AT"
@@ -500,10 +536,17 @@ else:
             x="faixa_gu",
             y="faixa_at",
             z="arrecadacao",
-            category_orders={"faixa_at": ORDEM_FAIXA_AT, "faixa_gu": ORDEM_FAIXA_GU},
+            category_orders={
+                "faixa_at": ORDEM_FAIXA_AT,
+                "faixa_gu": ORDEM_FAIXA_GU,
+            },
             text_auto=".2s",
             color_continuous_scale="Greens",
-            labels={"faixa_gu": "Faixa_GU", "faixa_at": "Faixa_AT", "arrecadacao": "Arrecadação"},
+            labels={
+                "faixa_gu": "Faixa_GU",
+                "faixa_at": "Faixa_AT",
+                "arrecadacao": "Arrecadação",
+            },
         )
         fig.update_layout(height=500)
         st.plotly_chart(fig, use_container_width=True)
@@ -555,11 +598,13 @@ with st.expander("Tabelas detalhadas e sumarizadas"):
             sumario_municipio = carregar_sumario_municipio(
                 uf, municipio, contagem, tamanho, campo_arrecadacao
             )
-            
+
             sumario_uf = (
                 pd.DataFrame()
                 if municipio != "Todos"
-                else carregar_sumario_uf(uf, municipio, contagem, tamanho, campo_arrecadacao)
+                else carregar_sumario_uf(
+                    uf, municipio, contagem, tamanho, campo_arrecadacao
+                )
             )
 
         tab_ibge, tab_municipio, tab_uf = st.tabs(
@@ -573,11 +618,15 @@ with st.expander("Tabelas detalhadas e sumarizadas"):
 
         with tab_municipio:
             tabela_municipio = sumario_municipio.copy()
-            tabela_municipio["contagem"] = tabela_municipio["contagem"].map(formatar_inteiro)
+            tabela_municipio["contagem"] = tabela_municipio["contagem"].map(
+                formatar_inteiro
+            )
             tabela_municipio["area_total"] = tabela_municipio["area_total"].map(
                 lambda x: formatar_decimal(valor_numerico(x))
             )
-            tabela_municipio["arrecadacao"] = tabela_municipio["arrecadacao"].map(moeda)
+            tabela_municipio["arrecadacao"] = tabela_municipio[
+                "arrecadacao"
+            ].map(moeda)
             tabela_municipio = tabela_municipio.rename(
                 columns={
                     "uf": "UF",
@@ -587,14 +636,20 @@ with st.expander("Tabelas detalhadas e sumarizadas"):
                     "arrecadacao": f"Arrecadação ({arrecadacao_label})",
                 }
             )
-            st.dataframe(tabela_municipio, use_container_width=True, hide_index=True)
+            st.dataframe(
+                tabela_municipio, use_container_width=True, hide_index=True
+            )
 
         with tab_uf:
             if municipio != "Todos":
-                st.info("Aba indisponível quando um município específico está selecionado.")
+                st.info(
+                    "Aba indisponível quando um município específico está selecionado."
+                )
             else:
                 tabela_uf = sumario_uf.copy()
-                tabela_uf["contagem"] = tabela_uf["contagem"].map(formatar_inteiro)
+                tabela_uf["contagem"] = tabela_uf["contagem"].map(
+                    formatar_inteiro
+                )
                 tabela_uf["area_total"] = tabela_uf["area_total"].map(
                     lambda x: formatar_decimal(valor_numerico(x))
                 )
@@ -607,7 +662,11 @@ with st.expander("Tabelas detalhadas e sumarizadas"):
                         "arrecadacao": f"Arrecadação ({arrecadacao_label})",
                     }
                 )
-                st.dataframe(tabela_uf, use_container_width=True, hide_index=True)
+                st.dataframe(
+                    tabela_uf, use_container_width=True, hide_index=True
+                )
 
 st.divider()
-st.caption("Dashboard ITR | BigQuery | filtros aplicados às métricas e aos cruzamentos")
+st.caption(
+    "Dashboard ITR | BigQuery | filtros aplicados às métricas e aos cruzamentos"
+)
