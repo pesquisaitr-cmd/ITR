@@ -128,14 +128,6 @@ def formatar_decimal(valor, casas=2):
 def moeda(valor):
     return f"R$ {formatar_decimal(valor)}"
 
-def formatar_resumido_br(num):
-    """Formata grandes números para exibição limpa em gráficos (ex: 1,2M, 250k)."""
-    if num >= 1_000_000:
-        return f"{num / 1_000_000:.2f}M".replace(".", ",")
-    elif num >= 1_000:
-        return f"{num / 1_000:.1f}k".replace(".", ",")
-    return str(int(num))
-
 def ordenar_faixas(df):
     df = df.copy()
     if "faixa_at" in df.columns:
@@ -374,7 +366,7 @@ else:
 st.divider()
 
 # ============================================================
-# CRUZAMENTOS 2x2 - FAIXA_AT x FAIXA_GU (REFINADO)
+# CRUZAMENTOS 2x2 - FAIXA_AT x FAIXA_GU (CORRIGIDO VIA PX.IMSHOW)
 # ============================================================
 st.header("Cruzamentos 2 × 2 — Faixa_AT × Faixa_GU")
 st.write("Visão detalhada do cruzamento de faixas de área e grau de utilização.")
@@ -393,36 +385,24 @@ else:
         )
         piv_contagem.index.name = "Faixa_AT"
         piv_contagem.columns.name = "Faixa_GU"
-        
-        # Exibição Tabela com Totais
-        piv_contagem_tabela = piv_contagem.copy()
-        piv_contagem_tabela["Total"] = piv_contagem_tabela.sum(axis=1)
-        piv_contagem_tabela.loc["Total"] = piv_contagem_tabela.sum(axis=0)
-        st.dataframe(piv_contagem_tabela.astype(int).map(formatar_inteiro), use_container_width=True)
 
-        # Gráfico Heatmap Ajustado (Rótulos Limpos + Escala de Cores Ajustada)
-        df_plot_cont = cruzamento.copy()
-        df_plot_cont["texto_rotulo"] = df_plot_cont["contagem"].apply(formatar_resumido_br)
+        # Exibição da Tabela com Totais
+        piv_cont_tabela = piv_contagem.copy()
+        piv_cont_tabela["Total"] = piv_cont_tabela.sum(axis=1)
+        piv_cont_tabela.loc["Total"] = piv_cont_tabela.sum(axis=0)
+        st.dataframe(piv_cont_tabela.astype(int).map(formatar_inteiro), use_container_width=True)
 
-        fig_cont = px.density_heatmap(
-            df_plot_cont,
-            x="faixa_gu",
-            y="faixa_at",
-            z="contagem",
-            category_orders={"faixa_at": ORDEM_FAIXA_AT, "faixa_gu": ORDEM_FAIXA_GU},
-            text_auto=False,
+        # Heatmap nativo seguro via px.imshow
+        fig_cont = px.imshow(
+            piv_contagem,
+            labels=dict(x="Faixa_GU", y="Faixa_AT", color="Contagem"),
+            x=piv_contagem.columns,
+            y=piv_contagem.index,
             color_continuous_scale="Blues",
-            labels={"faixa_gu": "Faixa_GU", "faixa_at": "Faixa_AT", "contagem": "Contagem"},
+            text_auto=True,
+            aspect="auto",
         )
-        
-        # Injeção dos rótulos formatados em PT-BR
-        fig_cont.update_traces(
-            text=df_plot_cont.pivot(index="faixa_at", columns="faixa_gu", values="texto_rotulo")
-            .reindex(index=ORDEM_FAIXA_AT, columns=ORDEM_FAIXA_GU).values,
-            texttemplate="%{text}",
-            textfont={"size": 13, "color": "black"},
-        )
-        fig_cont.update_layout(height=520, margin=dict(l=20, r=20, t=30, b=20))
+        fig_cont.update_layout(height=480, margin=dict(l=20, r=20, t=30, b=20))
         st.plotly_chart(fig_cont, use_container_width=True)
 
     # ------------------ ARRECADAÇÃO ------------------
@@ -434,33 +414,24 @@ else:
         )
         piv_arrecadacao.index.name = "Faixa_AT"
         piv_arrecadacao.columns.name = "Faixa_GU"
-        
-        # Exibição Tabela com Totais
+
+        # Exibição da Tabela com Totais
         piv_arr_tabela = piv_arrecadacao.copy()
         piv_arr_tabela["Total"] = piv_arr_tabela.sum(axis=1)
         piv_arr_tabela.loc["Total"] = piv_arr_tabela.sum(axis=0)
         st.dataframe(piv_arr_tabela.map(moeda), use_container_width=True)
 
-        # Heatmap de Arrecadação
-        df_plot_arr = cruzamento.copy()
-        df_plot_arr["texto_rotulo"] = df_plot_arr["arrecadacao"].apply(moeda)
-
-        fig_arr = px.density_heatmap(
-            df_plot_arr,
-            x="faixa_gu",
-            y="faixa_at",
-            z="arrecadacao",
-            category_orders={"faixa_at": ORDEM_FAIXA_AT, "faixa_gu": ORDEM_FAIXA_GU},
+        # Heatmap nativo seguro via px.imshow
+        fig_arr = px.imshow(
+            piv_arrecadacao,
+            labels=dict(x="Faixa_GU", y="Faixa_AT", color="Arrecadação (R$)"),
+            x=piv_arrecadacao.columns,
+            y=piv_arrecadacao.index,
             color_continuous_scale="Greens",
-            labels={"faixa_gu": "Faixa_GU", "faixa_at": "Faixa_AT", "arrecadacao": "Arrecadação"},
+            text_auto=".2s",
+            aspect="auto",
         )
-        fig_arr.update_traces(
-            text=df_plot_arr.pivot(index="faixa_at", columns="faixa_gu", values="texto_rotulo")
-            .reindex(index=ORDEM_FAIXA_AT, columns=ORDEM_FAIXA_GU).values,
-            texttemplate="%{text}",
-            textfont={"size": 11},
-        )
-        fig_arr.update_layout(height=520, margin=dict(l=20, r=20, t=30, b=20))
+        fig_arr.update_layout(height=480, margin=dict(l=20, r=20, t=30, b=20))
         st.plotly_chart(fig_arr, use_container_width=True)
 
 # ============================================================
