@@ -280,7 +280,7 @@ def carregar_detalhada(uf, municipio, contagem, tamanho, campo_arrecadacao):
     query = f"""
         SELECT
             uf, codigo_do_municipio_ibge AS codigo_ibge, municipio,
-            at_imovel, area_total, Isencao, gu_fixo, gu_calc, itr_gu_fixo, itr_gu_calc
+            at_imovel, area_total, gu_calc, itr_gu_fixo, itr_gu_calc
         FROM {TABLE_PATH}
         {where}
         LIMIT {LIMITE_TABELA_DETALHADA}
