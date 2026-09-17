@@ -500,9 +500,9 @@ with st.expander("Tabelas detalhadas e sumarizadas"):
     st.warning("A tabela por código IBGE é uma amostra limitada; os totais sumarizados são calculados no BigQuery.")
     if st.button("Carregar tabelas", key="carregar_tabelas"):
         with st.spinner("Carregando tabelas no BigQuery..."):
-            detalhada = carregar_detalhada(uf, municipio, contagem, tamanho, campo_arrecadacao)
-            sumario_municipio = carregar_sumario_municipio(uf, municipio, contagem, tamanho, campo_arrecadacao)
-            sumario_uf = pd.DataFrame() if municipio != "Todos" else carregar_sumario_uf(uf, municipio, contagem, tamanho, campo_arrecadacao)
+            detalhada = carregar_detalhada(uf, municipio, tamanho, campo_arrecadacao)
+            sumario_municipio = carregar_sumario_municipio(uf, municipio, tamanho, campo_arrecadacao)
+            sumario_uf = pd.DataFrame() if municipio != "Todos" else carregar_sumario_uf(uf, municipio, tamanho, campo_arrecadacao)
 
         tab_ibge, tab_municipio, tab_uf = st.tabs(["Por código IBGE", "Por município", "Por UF"])
         
