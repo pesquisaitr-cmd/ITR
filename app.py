@@ -500,9 +500,10 @@ with st.expander("Tabelas detalhadas e sumarizadas"):
     st.warning("A tabela por código IBGE é uma amostra limitada; os totais sumarizados são calculados no BigQuery.")
     if st.button("Carregar tabelas", key="carregar_tabelas"):
         with st.spinner("Carregando tabelas no BigQuery..."):
-            detalhada = carregar_detalhada(uf, municipio, tamanho, campo_arrecadacao)
-            sumario_municipio = carregar_sumario_municipio(uf, municipio, tamanho, campo_arrecadacao)
-            sumario_uf = pd.DataFrame() if municipio != "Todos" else carregar_sumario_uf(uf, municipio, tamanho, campo_arrecadacao)
+            # MANTENHA 'contagem' AQUI nas chamadas para não quebrar a assinatura das funções:
+            detalhada = carregar_detalhada(uf, municipio, contagem, tamanho, campo_arrecadacao)
+            sumario_municipio = carregar_sumario_municipio(uf, municipio, contagem, tamanho, campo_arrecadacao)
+            sumario_uf = pd.DataFrame() if municipio != "Todos" else carregar_sumario_uf(uf, municipio, contagem, tamanho, campo_arrecadacao)
 
         tab_ibge, tab_municipio, tab_uf = st.tabs(["Por código IBGE", "Por município", "Por UF"])
         
@@ -512,6 +513,7 @@ with st.expander("Tabelas detalhadas e sumarizadas"):
 
         with tab_municipio:
             tabela_municipio = sumario_municipio.copy()
+            # Removida a linha de formatação da coluna "contagem"
             tabela_municipio["area_total"] = tabela_municipio["area_total"].map(lambda x: formatar_decimal(valor_numerico(x)))
             tabela_municipio["arrecadacao"] = tabela_municipio["arrecadacao"].map(moeda)
             tabela_municipio = tabela_municipio.rename(
@@ -522,6 +524,10 @@ with st.expander("Tabelas detalhadas e sumarizadas"):
                     "arrecadacao": f"Arrecadação ({arrecadacao_label})",
                 }
             )
+            # Remove a coluna 'contagem' da exibição antes de renderizar
+            if "contagem" in tabela_municipio.columns:
+                tabela_municipio = tabela_municipio.drop(columns=["contagem"])
+                
             st.dataframe(tabela_municipio, use_container_width=True, hide_index=True)
 
         with tab_uf:
@@ -529,6 +535,7 @@ with st.expander("Tabelas detalhadas e sumarizadas"):
                 st.info("Aba indisponível quando um município específico está selecionado.")
             else:
                 tabela_uf = sumario_uf.copy()
+                # Removida a linha de formatação da coluna "contagem"
                 tabela_uf["area_total"] = tabela_uf["area_total"].map(lambda x: formatar_decimal(valor_numerico(x)))
                 tabela_uf["arrecadacao"] = tabela_uf["arrecadacao"].map(moeda)
                 tabela_uf = tabela_uf.rename(
@@ -538,7 +545,10 @@ with st.expander("Tabelas detalhadas e sumarizadas"):
                         "arrecadacao": f"Arrecadação ({arrecadacao_label})",
                     }
                 )
+                # Remove a coluna 'contagem' da exibição antes de renderizar
+                if "contagem" in tabela_uf.columns:
+                    tabela_uf = tabela_uf.drop(columns=["contagem"])
+                    
                 st.dataframe(tabela_uf, use_container_width=True, hide_index=True)
-
 st.divider()
 st.caption("Dashboard ITR | BigQuery | Filtros dinâmicos")
