@@ -512,14 +512,12 @@ with st.expander("Tabelas detalhadas e sumarizadas"):
 
         with tab_municipio:
             tabela_municipio = sumario_municipio.copy()
-            tabela_municipio["contagem"] = tabela_municipio["contagem"].map(formatar_inteiro)
             tabela_municipio["area_total"] = tabela_municipio["area_total"].map(lambda x: formatar_decimal(valor_numerico(x)))
             tabela_municipio["arrecadacao"] = tabela_municipio["arrecadacao"].map(moeda)
             tabela_municipio = tabela_municipio.rename(
                 columns={
                     "uf": "UF",
                     "municipio": "Município",
-                    "contagem": "Contagem",
                     "area_total": "Área total (ha)",
                     "arrecadacao": f"Arrecadação ({arrecadacao_label})",
                 }
@@ -531,13 +529,11 @@ with st.expander("Tabelas detalhadas e sumarizadas"):
                 st.info("Aba indisponível quando um município específico está selecionado.")
             else:
                 tabela_uf = sumario_uf.copy()
-                tabela_uf["contagem"] = tabela_uf["contagem"].map(formatar_inteiro)
                 tabela_uf["area_total"] = tabela_uf["area_total"].map(lambda x: formatar_decimal(valor_numerico(x)))
                 tabela_uf["arrecadacao"] = tabela_uf["arrecadacao"].map(moeda)
                 tabela_uf = tabela_uf.rename(
                     columns={
                         "uf": "UF",
-                        "contagem": "Contagem",
                         "area_total": "Área total (ha)",
                         "arrecadacao": f"Arrecadação ({arrecadacao_label})",
                     }
