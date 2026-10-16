@@ -216,61 +216,19 @@ def carregar_resumo_uf(contagem, tamanho, campo_arrecadacao):
 def carregar_sumario_municipio(uf, municipio, contagem, tamanho, campo_arrecadacao):
     where, params = montar_filtros(uf, municipio, contagem, tamanho)
     query = f"""
-        WITH base AS (
-            SELECT
-                CAST(uf AS STRING) AS uf,
-                codigo_do_municipio_ibge AS codigo_ibge,
-                CAST(municipio AS STRING) AS municipio,
-                area_total,
-                {campo_arrecadacao} AS arrecadacao
-            FROM {TABLE_PATH}
-            {where}
-        ),
-        areas_municipios AS (
-            SELECT uf, codigo_ibge, ANY_VALUE(municipio) AS municipio, ANY_VALUE(area_total) AS area_total
-            FROM base GROUP BY uf, codigo_ibge
-        ),
-        metricas AS (
-            SELECT uf, codigo_ibge, COUNT(*) AS contagem, COALESCE(SUM(arrecadacao), 0) AS arrecadacao
-            FROM base GROUP BY uf, codigo_ibge
-        )
-        SELECT m.uf, a.municipio, m.contagem, COALESCE(a.area_total, 0) AS area_total, m.arrecadacao
-        FROM metricas AS m
-        LEFT JOIN areas_municipios AS a USING (uf, codigo_ibge)
-        ORDER BY m.arrecadacao DESC, a.municipio
-    """
-    return executar_consulta(query, params)
-
-@st.cache_data(ttl=900, show_spinner=False)
-def carregar_sumario_uf(uf, municipio, contagem, tamanho, campo_arrecadacao):
-    where, params = montar_filtros(uf, municipio, contagem, tamanho)
-    query = f"""
-        WITH base AS (
-            SELECT
-                CAST(uf AS STRING) AS uf,
-                codigo_do_municipio_ibge AS codigo_ibge,
-                CAST(municipio AS STRING) AS municipio,
-                area_total,
-                {campo_arrecadacao} AS arrecadacao
-            FROM {TABLE_PATH}
-            {where}
-        ),
-        areas_municipios AS (
-            SELECT uf, codigo_ibge, ANY_VALUE(area_total) AS area_total
-            FROM base GROUP BY uf, codigo_ibge
-        ),
-        metricas_uf AS (
-            SELECT uf, COUNT(*) AS contagem, COALESCE(SUM(arrecadacao), 0) AS arrecadacao
-            FROM base GROUP BY uf
-        ),
-        areas_uf AS (
-            SELECT uf, COALESCE(SUM(area_total), 0) AS area_total
-            FROM areas_municipios GROUP BY uf
-        )
-        SELECT m.uf, m.contagem, COALESCE(a.area_total, 0) AS area_total, m.arrecadacao
-        FROM metricas_uf AS m
-        LEFT JOIN areas_uf AS a USING (uf)
-        ORDER BY m.arrecadacao DESC, m.uf
+        SELECT
+            uf,
+            codigo_do_municipio_ibge AS codigo_ibge,
+            municipio,
+            codigo_do_imovel,
+            denominacao,
+            at_imovel,
+            gu_calc,
+            itr_gu_fixo,
+            itr_gu_calc
+        FROM {TABLE_PATH}
+        {where}
+        ORDER BY municipio, denominacao
     """
     return executar_consulta(query, params)
 
@@ -279,8 +237,15 @@ def carregar_detalhada(uf, municipio, contagem, tamanho, campo_arrecadacao):
     where, params = montar_filtros(uf, municipio, contagem, tamanho)
     query = f"""
         SELECT
-            codigo_do_municipio_ibge AS codigo_ibge, uf, municipio,
-            at_imovel, gu_calc, itr_gu_fixo, itr_gu_calc
+            uf,
+            codigo_do_municipio_ibge AS codigo_ibge,
+            municipio,
+            codigo_do_imovel,
+            denominacao,
+            at_imovel,
+            gu_calc,
+            itr_gu_fixo,
+            itr_gu_calc
         FROM {TABLE_PATH}
         {where}
         LIMIT {LIMITE_TABELA_DETALHADA}
@@ -398,7 +363,6 @@ else:
         piv_contagem.index.name = "Faixa_AT"
         piv_contagem.columns.name = "Faixa_GU"
 
-        # Exibição da Tabela com Totais
         piv_cont_tabela = piv_contagem.copy()
         piv_cont_tabela["Total"] = piv_cont_tabela.sum(axis=1)
         piv_cont_tabela.loc["Total"] = piv_cont_tabela.sum(axis=0)
@@ -426,16 +390,12 @@ else:
         piv_arrecadacao.index.name = "Faixa_AT"
         piv_arrecadacao.columns.name = "Faixa_GU"
 
-        # Exibição da Tabela com Totais
         piv_arr_tabela = piv_arrecadacao.copy()
         piv_arr_tabela["Total"] = piv_arr_tabela.sum(axis=1)
         piv_arr_tabela.loc["Total"] = piv_arr_tabela.sum(axis=0)
         st.dataframe(piv_arr_tabela.map(moeda), use_container_width=True)
 
-        # Matriz de texto formatada em R$ M / R$ B
         matriz_texto = piv_arrecadacao.map(formatar_texto_heatmap).values
-
-        # Escala logarítmica para equilibrar as cores contra o outlier de 45B
         piv_log = np.log10(piv_arrecadacao + 1)
 
         fig_arr = px.imshow(
@@ -497,58 +457,49 @@ if uf == "Brasil" and municipio == "Todos":
 # TABELAS DETALHADAS
 # ============================================================
 with st.expander("Tabelas detalhadas e sumarizadas"):
-    st.warning("A tabela por código IBGE é uma amostra limitada; os totais sumarizados são calculados no BigQuery.")
+    st.warning("A tabela por código IBGE é uma amostra limitada; a tabela por município traz os dados completos.")
     if st.button("Carregar tabelas", key="carregar_tabelas"):
         with st.spinner("Carregando tabelas no BigQuery..."):
-            # MANTENHA 'contagem' AQUI nas chamadas para não quebrar a assinatura das funções:
             detalhada = carregar_detalhada(uf, municipio, contagem, tamanho, campo_arrecadacao)
             sumario_municipio = carregar_sumario_municipio(uf, municipio, contagem, tamanho, campo_arrecadacao)
-            sumario_uf = pd.DataFrame() if municipio != "Todos" else carregar_sumario_uf(uf, municipio, contagem, tamanho, campo_arrecadacao)
 
-        tab_ibge, tab_municipio, tab_uf = st.tabs(["Por código IBGE", "Por município", "Por UF"])
+        tab_ibge, tab_municipio = st.tabs(["Por código IBGE", "Por município"])
         
+        # Mapeamento padrão de nomes amigáveis para os cabeçalhos
+        mapeamento_colunas = {
+            "uf": "UF",
+            "codigo_ibge": "Código IBGE",
+            "municipio": "Município",
+            "codigo_do_imovel": "Código do Imóvel",
+            "denominacao": "Denominação",
+            "at_imovel": "Área Total (ha)",
+            "gu_calc": "GU Calc (%)",
+            "itr_gu_fixo": "ITR GU Fixo (R$)",
+            "itr_gu_calc": "ITR GU Calc (R$)"
+        }
+
         with tab_ibge:
             st.caption(f"Amostra de até {LIMITE_TABELA_DETALHADA} registros.")
-            st.dataframe(detalhada, use_container_width=True, hide_index=True)
+            detalhada_fmt = detalhada.copy()
+            if not detalhada_fmt.empty:
+                detalhada_fmt["at_imovel"] = detalhada_fmt["at_imovel"].map(lambda x: formatar_decimal(valor_numerico(x)))
+                detalhada_fmt["gu_calc"] = detalhada_fmt["gu_calc"].map(lambda x: formatar_decimal(valor_numerico(x)))
+                detalhada_fmt["itr_gu_fixo"] = detalhada_fmt["itr_gu_fixo"].map(moeda)
+                detalhada_fmt["itr_gu_calc"] = detalhada_fmt["itr_gu_calc"].map(moeda)
+                detalhada_fmt = detalhada_fmt.rename(columns=mapeamento_colunas)
+                
+            st.dataframe(detalhada_fmt, use_container_width=True, hide_index=True)
 
         with tab_municipio:
             tabela_municipio = sumario_municipio.copy()
-            # Removida a linha de formatação da coluna "contagem"
-            tabela_municipio["area_total"] = tabela_municipio["area_total"].map(lambda x: formatar_decimal(valor_numerico(x)))
-            tabela_municipio["arrecadacao"] = tabela_municipio["arrecadacao"].map(moeda)
-            tabela_municipio = tabela_municipio.rename(
-                columns={
-                    "uf": "UF",
-                    "municipio": "Município",
-                    "area_total": "Área total (ha)",
-                    "arrecadacao": f"Arrecadação ({arrecadacao_label})",
-                }
-            )
-            # Remove a coluna 'contagem' da exibição antes de renderizar
-            if "contagem" in tabela_municipio.columns:
-                tabela_municipio = tabela_municipio.drop(columns=["contagem"])
+            if not tabela_municipio.empty:
+                tabela_municipio["at_imovel"] = tabela_municipio["at_imovel"].map(lambda x: formatar_decimal(valor_numerico(x)))
+                tabela_municipio["gu_calc"] = tabela_municipio["gu_calc"].map(lambda x: formatar_decimal(valor_numerico(x)))
+                tabela_municipio["itr_gu_fixo"] = tabela_municipio["itr_gu_fixo"].map(moeda)
+                tabela_municipio["itr_gu_calc"] = tabela_municipio["itr_gu_calc"].map(moeda)
+                tabela_municipio = tabela_municipio.rename(columns=mapeamento_colunas)
                 
             st.dataframe(tabela_municipio, use_container_width=True, hide_index=True)
 
-        with tab_uf:
-            if municipio != "Todos":
-                st.info("Aba indisponível quando um município específico está selecionado.")
-            else:
-                tabela_uf = sumario_uf.copy()
-                # Removida a linha de formatação da coluna "contagem"
-                tabela_uf["area_total"] = tabela_uf["area_total"].map(lambda x: formatar_decimal(valor_numerico(x)))
-                tabela_uf["arrecadacao"] = tabela_uf["arrecadacao"].map(moeda)
-                tabela_uf = tabela_uf.rename(
-                    columns={
-                        "uf": "UF",
-                        "area_total": "Área total (ha)",
-                        "arrecadacao": f"Arrecadação ({arrecadacao_label})",
-                    }
-                )
-                # Remove a coluna 'contagem' da exibição antes de renderizar
-                if "contagem" in tabela_uf.columns:
-                    tabela_uf = tabela_uf.drop(columns=["contagem"])
-                    
-                st.dataframe(tabela_uf, use_container_width=True, hide_index=True)
 st.divider()
 st.caption("Dashboard ITR | BigQuery | Filtros dinâmicos")
