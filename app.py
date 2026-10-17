@@ -230,7 +230,8 @@ def carregar_resumo_municipio_grafico(uf, contagem, tamanho, campo_arrecadacao):
         GROUP BY municipio
         ORDER BY arrecadacao DESC
     """
-    return executar_consulta(query, params)
+    # IMPORTANTE: passa explicitamente os parâmetros para a query
+    return executar_consulta(query, query_parameters=params)
 
 @st.cache_data(ttl=900, show_spinner=False)
 def carregar_sumario_municipio(uf, municipio, contagem, tamanho, campo_arrecadacao):
