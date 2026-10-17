@@ -215,6 +215,11 @@ def carregar_resumo_uf(contagem, tamanho, campo_arrecadacao):
 @st.cache_data(ttl=900, show_spinner=False)
 def carregar_resumo_municipio_grafico(uf, contagem, tamanho, campo_arrecadacao):
     where, params = montar_filtros(uf, "Todos", contagem, tamanho)
+    if where:
+        where += " AND municipio IS NOT NULL"
+    else:
+        where = "WHERE municipio IS NOT NULL"
+
     query = f"""
         SELECT
             CAST(municipio AS STRING) AS municipio,
@@ -463,9 +468,10 @@ if not por_grafico.empty:
             y=label_y,
             orientation="h",
             title=titulo_contagem,
-            labels={"contagem": "Contagem", label_y: label_y.upper()},
+            labels={"contagem": "Contagem", label_y: "Município" if label_y == "municipio" else "UF"},
             text_auto=True,
         )
+        fig1.update_layout(yaxis={'categoryorder': 'value ascending'})
         st.plotly_chart(fig1, use_container_width=True)
     with c2:
         fig2 = px.bar(
@@ -474,10 +480,13 @@ if not por_grafico.empty:
             y=label_y,
             orientation="h",
             title=titulo_arrecadacao,
-            labels={"arrecadacao": "Arrecadação (R$)", label_y: label_y.upper()},
+            labels={"arrecadacao": "Arrecadação (R$)", label_y: "Município" if label_y == "municipio" else "UF"},
             text_auto=".2s",
         )
+        fig2.update_layout(yaxis={'categoryorder': 'value ascending'})
         st.plotly_chart(fig2, use_container_width=True)
+else:
+    st.info("Não foram encontrados dados para gerar o gráfico com os filtros selecionados.")
 
 # ============================================================
 # TABELAS DETALHADAS
