@@ -213,6 +213,21 @@ def carregar_resumo_uf(contagem, tamanho, campo_arrecadacao):
     return executar_consulta(query, params)
 
 @st.cache_data(ttl=900, show_spinner=False)
+def carregar_resumo_municipio_grafico(uf, contagem, tamanho, campo_arrecadacao):
+    where, params = montar_filtros(uf, "Todos", contagem, tamanho)
+    query = f"""
+        SELECT
+            CAST(municipio AS STRING) AS municipio,
+            COUNT(*) AS contagem,
+            COALESCE(SUM({campo_arrecadacao}), 0) AS arrecadacao
+        FROM {TABLE_PATH}
+        {where}
+        GROUP BY municipio
+        ORDER BY arrecadacao DESC
+    """
+    return executar_consulta(query, params)
+
+@st.cache_data(ttl=900, show_spinner=False)
 def carregar_sumario_municipio(uf, municipio, contagem, tamanho, campo_arrecadacao):
     where, params = montar_filtros(uf, municipio, contagem, tamanho)
     query = f"""
@@ -422,36 +437,47 @@ else:
         st.plotly_chart(fig_arr, use_container_width=True)
 
 # ============================================================
-# COMPARAÇÃO UF (QUANDO BRASIL É SELECIONADO)
+# COMPARAÇÃO E GRÁFICOS DE BARRAS (SEMPRE VISÍVEIS)
 # ============================================================
-if uf == "Brasil" and municipio == "Todos":
-    st.divider()
+st.divider()
+
+if uf == "Brasil":
     st.header("Brasil — comparação entre as UFs")
-    por_uf = carregar_resumo_uf(contagem, tamanho, campo_arrecadacao)
-    if not por_uf.empty:
-        c1, c2 = st.columns(2)
-        with c1:
-            fig = px.bar(
-                por_uf.sort_values("contagem"),
-                x="contagem",
-                y="uf",
-                orientation="h",
-                title="Contagem de imóveis por UF",
-                labels={"contagem": "Contagem", "uf": "UF"},
-                text_auto=True,
-            )
-            st.plotly_chart(fig, use_container_width=True)
-        with c2:
-            fig = px.bar(
-                por_uf.sort_values("arrecadacao"),
-                x="arrecadacao",
-                y="uf",
-                orientation="h",
-                title=f"Arrecadação {arrecadacao_label} por UF",
-                labels={"arrecadacao": "Arrecadação (R$)", "uf": "UF"},
-                text_auto=".2s",
-            )
-            st.plotly_chart(fig, use_container_width=True)
+    label_y = "uf"
+    titulo_contagem = "Contagem de imóveis por UF"
+    titulo_arrecadacao = f"Arrecadação {arrecadacao_label} por UF"
+    por_grafico = carregar_resumo_uf(contagem, tamanho, campo_arrecadacao)
+else:
+    st.header(f"Comparação entre Municípios — {uf}")
+    label_y = "municipio"
+    titulo_contagem = f"Contagem de imóveis por Município ({uf})"
+    titulo_arrecadacao = f"Arrecadação {arrecadacao_label} por Município ({uf})"
+    por_grafico = carregar_resumo_municipio_grafico(uf, contagem, tamanho, campo_arrecadacao)
+
+if not por_grafico.empty:
+    c1, c2 = st.columns(2)
+    with c1:
+        fig1 = px.bar(
+            por_grafico.sort_values("contagem").tail(20),
+            x="contagem",
+            y=label_y,
+            orientation="h",
+            title=titulo_contagem,
+            labels={"contagem": "Contagem", label_y: label_y.upper()},
+            text_auto=True,
+        )
+        st.plotly_chart(fig1, use_container_width=True)
+    with c2:
+        fig2 = px.bar(
+            por_grafico.sort_values("arrecadacao").tail(20),
+            x="arrecadacao",
+            y=label_y,
+            orientation="h",
+            title=titulo_arrecadacao,
+            labels={"arrecadacao": "Arrecadação (R$)", label_y: label_y.upper()},
+            text_auto=".2s",
+        )
+        st.plotly_chart(fig2, use_container_width=True)
 
 # ============================================================
 # TABELAS DETALHADAS
@@ -465,7 +491,6 @@ with st.expander("Tabelas detalhadas e sumarizadas"):
 
         tab_ibge, tab_municipio = st.tabs(["Por código IBGE", "Por município"])
         
-        # Mapeamento padrão de nomes amigáveis para os cabeçalhos
         mapeamento_colunas = {
             "uf": "UF",
             "codigo_ibge": "Código IBGE",
