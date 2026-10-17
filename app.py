@@ -214,11 +214,22 @@ def carregar_resumo_uf(contagem, tamanho, campo_arrecadacao):
 
 @st.cache_data(ttl=900, show_spinner=False)
 def carregar_resumo_municipio_grafico(uf, contagem, tamanho, campo_arrecadacao):
-    where, params = montar_filtros(uf, "Todos", contagem, tamanho)
-    if where:
-        where += " AND municipio IS NOT NULL"
-    else:
-        where = "WHERE municipio IS NOT NULL"
+    # Consulta direta forçando apenas o filtro de UF para listar todos os municípios do estado
+    condicoes = ["CAST(uf AS STRING) = @uf", "municipio IS NOT NULL"]
+    parametros = [bigquery.ScalarQueryParameter("uf", "STRING", uf)]
+
+    if tamanho == "Menos que 0,5 hectare":
+        condicoes.append("at_imovel < @area_maxima")
+        parametros.append(bigquery.ScalarQueryParameter("area_maxima", "FLOAT64", 0.5))
+    elif tamanho == "Até 2 hectares":
+        condicoes.append("at_imovel <= @area_maxima")
+        parametros.append(bigquery.ScalarQueryParameter("area_maxima", "FLOAT64", 2.0))
+
+    if contagem != "Todos":
+        condicoes.append("Isencao = @isencao")
+        parametros.append(bigquery.ScalarQueryParameter("isencao", "INT64", ISENCOES[contagem]))
+
+    where_clause = "WHERE " + " AND ".join(condicoes)
 
     query = f"""
         SELECT
@@ -226,12 +237,11 @@ def carregar_resumo_municipio_grafico(uf, contagem, tamanho, campo_arrecadacao):
             COUNT(*) AS contagem,
             COALESCE(SUM({campo_arrecadacao}), 0) AS arrecadacao
         FROM {TABLE_PATH}
-        {where}
+        {where_clause}
         GROUP BY municipio
         ORDER BY arrecadacao DESC
     """
-    # IMPORTANTE: passa explicitamente os parâmetros para a query
-    return executar_consulta(query, query_parameters=params)
+    return executar_consulta(query, query_parameters=parametros)
 
 @st.cache_data(ttl=900, show_spinner=False)
 def carregar_sumario_municipio(uf, municipio, contagem, tamanho, campo_arrecadacao):
@@ -463,8 +473,10 @@ else:
 if not por_grafico.empty:
     c1, c2 = st.columns(2)
     with c1:
+        # Pega no máximo os top 20 para o gráfico não ficar espremido
+        df_cont = por_grafico.sort_values("contagem").tail(20)
         fig1 = px.bar(
-            por_grafico.sort_values("contagem").tail(20),
+            df_cont,
             x="contagem",
             y=label_y,
             orientation="h",
@@ -475,8 +487,9 @@ if not por_grafico.empty:
         fig1.update_layout(yaxis={'categoryorder': 'value ascending'})
         st.plotly_chart(fig1, use_container_width=True)
     with c2:
+        df_arr = por_grafico.sort_values("arrecadacao").tail(20)
         fig2 = px.bar(
-            por_grafico.sort_values("arrecadacao").tail(20),
+            df_arr,
             x="arrecadacao",
             y=label_y,
             orientation="h",
@@ -487,7 +500,7 @@ if not por_grafico.empty:
         fig2.update_layout(yaxis={'categoryorder': 'value ascending'})
         st.plotly_chart(fig2, use_container_width=True)
 else:
-    st.info("Não foram encontrados dados para gerar o gráfico com os filtros selecionados.")
+    st.info("Não foram encontrados dados para gerar os gráficos de barras com os filtros selecionados.")
 
 # ============================================================
 # TABELAS DETALHADAS
