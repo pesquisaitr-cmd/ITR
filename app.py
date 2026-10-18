@@ -19,11 +19,14 @@ st.title("📊 Painel de Análise - ITR (Imposto Territorial Rural)")
 # -----------------------------------------------------------------------------
 @st.cache_resource
 def get_bigquery_client():
-    return bigquery.Client(project="pesquisa-itr")
-
+    return bigquery.Client(
+        project="pesquisa-itr",
+        location="southamerica-east1"
+    )
 @st.cache_data(ttl=3600)
 def load_data():
     client = get_bigquery_client()
+
     query = """
         SELECT 
             codigo_ibge,
@@ -34,11 +37,15 @@ def load_data():
             numero_imoveis,
             area_total,
             arrecadacao
-        FROM `pesquisa-itr.itr_dataset.itr_pronto`
+        FROM `pesquisa-itr.dados_itr.itr_pronto`
     """
-    query_job = client.query(query)
-    df = query_job.to_dataframe()
-    return df
+
+    query_job = client.query(
+        query,
+        location="southamerica-east1"
+    )
+
+    return query_job.to_dataframe()
 
 with st.spinner("Carregando dados do BigQuery..."):
     try:
