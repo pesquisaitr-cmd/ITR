@@ -17,6 +17,7 @@ PROJECT_ID = "pesquisa-itr"
 DATASET_ID = "dados_itr"
 TABLE_ID = "itr_pronto"
 TABLE_PATH = f"`{PROJECT_ID}.{DATASET_ID}.{TABLE_ID}`"
+LIMITE_TABELA_DETALHADA = 500
 
 ARRECADACOES = {
     "ITR_GU_FIXO": "GREATEST(itr_gu_fixo, 10.00)",
@@ -212,7 +213,7 @@ def carregar_resumo_uf(contagem, tamanho, campo_arrecadacao):
     return executar_consulta(query, params)
 
 @st.cache_data(ttl=900, show_spinner=False)
-def carregar_tabela_unica(uf, municipio, contagem, tamanho, campo_arrecadacao):
+def carregar_sumario_municipio(uf, municipio, contagem, tamanho, campo_arrecadacao):
     where, params = montar_filtros(uf, municipio, contagem, tamanho)
     query = f"""
         SELECT
@@ -433,44 +434,39 @@ if uf == "Brasil" and municipio == "Todos":
             st.plotly_chart(fig, use_container_width=True)
 
 # ============================================================
-# TABELA ÚNICA DE DADOS (DIRETA NA TELA — SEM EXPANDER E SEM ABAS)
+# TABELA DETALHADA COM VALIDAÇÃO DE ESTADO/MUNICÍPIO
 # ============================================================
-st.divider()
-st.header("Tabela de Dados do ITR")
+with st.expander("Tabelas detalhadas selecione um Estado e/ou Município"):
+    if st.button("Carregar tabelas", key="carregar_tabelas"):
+        if uf == "Brasil":
+            st.warning("Selecione um Estado e/ou Município")
+        else:
+            with st.spinner("Carregando tabela no BigQuery..."):
+                sumario_municipio = carregar_sumario_municipio(uf, municipio, contagem, tamanho, campo_arrecadacao)
 
-mapeamento_colunas = {
-    "uf": "UF",
-    "codigo_ibge": "Código IBGE",
-    "municipio": "Município",
-    "codigo_do_imovel": "Código do Imóvel",
-    "denominacao": "Denominação",
-    "at_imovel": "Área Total (ha)",
-    "gu_calc": "GU Calc (%)",
-    "itr_gu_fixo": "ITR GU Fixo (R$)",
-    "itr_gu_calc": "ITR GU Calc (R$)"
-}
+            mapeamento_colunas = {
+                "uf": "UF",
+                "codigo_ibge": "Código IBGE",
+                "municipio": "Município",
+                "codigo_do_imovel": "Código do Imóvel",
+                "denominacao": "Denominação",
+                "at_imovel": "Área Total (ha)",
+                "gu_calc": "GU Calc (%)",
+                "itr_gu_fixo": "ITR GU Fixo (R$)",
+                "itr_gu_calc": "ITR GU Calc (R$)"
+            }
 
-with st.spinner("Carregando dados no BigQuery..."):
-    df_tabela = carregar_tabela_unica(uf, municipio, contagem, tamanho, campo_arrecadacao)
-
-if df_tabela.empty:
-    st.info("Nenhum registro encontrado com os filtros selecionados.")
-else:
-    df_fmt = df_tabela.copy()
-    df_fmt["at_imovel"] = df_fmt["at_imovel"].map(lambda x: formatar_decimal(valor_numerico(x)))
-    df_fmt["gu_calc"] = df_fmt["gu_calc"].map(lambda x: formatar_decimal(valor_numerico(x)))
-    df_fmt["itr_gu_fixo"] = df_fmt["itr_gu_fixo"].map(moeda)
-    df_fmt["itr_gu_calc"] = df_fmt["itr_gu_calc"].map(moeda)
-    df_fmt = df_fmt.rename(columns=mapeamento_colunas)
-
-    if uf != "Brasil" and municipio == "Todos":
-        st.caption(f"Mostrando todos os municípios do estado: **{uf}** ({len(df_fmt)} registros).")
-    elif municipio != "Todos":
-        st.caption(f"Filtrado para o município: **{municipio} ({uf})** ({len(df_fmt)} registros).")
-    else:
-        st.caption(f"Visão Geral — Brasil ({len(df_fmt)} registros).")
-
-    st.dataframe(df_fmt, use_container_width=True, hide_index=True)
+            tabela_municipio = sumario_municipio.copy()
+            if not tabela_municipio.empty:
+                tabela_municipio["at_imovel"] = tabela_municipio["at_imovel"].map(lambda x: formatar_decimal(valor_numerico(x)))
+                tabela_municipio["gu_calc"] = tabela_municipio["gu_calc"].map(lambda x: formatar_decimal(valor_numerico(x)))
+                tabela_municipio["itr_gu_fixo"] = tabela_municipio["itr_gu_fixo"].map(moeda)
+                tabela_municipio["itr_gu_calc"] = tabela_municipio["itr_gu_calc"].map(moeda)
+                tabela_municipio = tabela_municipio.rename(columns=mapeamento_colunas)
+                
+                st.dataframe(tabela_municipio, use_container_width=True, hide_index=True)
+            else:
+                st.info("Nenhum registro encontrado para os filtros selecionados.")
 
 st.divider()
 st.caption("Dashboard ITR | BigQuery | Filtros dinâmicos")
