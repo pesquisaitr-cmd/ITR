@@ -213,38 +213,7 @@ def carregar_resumo_uf(contagem, tamanho, campo_arrecadacao):
     return executar_consulta(query, params)
 
 @st.cache_data(ttl=900, show_spinner=False)
-def carregar_resumo_municipio_grafico(uf, contagem, tamanho, campo_arrecadacao):
-    # Consulta direta forçando apenas o filtro de UF para listar todos os municípios do estado
-    condicoes = ["CAST(uf AS STRING) = @uf", "municipio IS NOT NULL"]
-    parametros = [bigquery.ScalarQueryParameter("uf", "STRING", uf)]
-
-    if tamanho == "Menos que 0,5 hectare":
-        condicoes.append("at_imovel < @area_maxima")
-        parametros.append(bigquery.ScalarQueryParameter("area_maxima", "FLOAT64", 0.5))
-    elif tamanho == "Até 2 hectares":
-        condicoes.append("at_imovel <= @area_maxima")
-        parametros.append(bigquery.ScalarQueryParameter("area_maxima", "FLOAT64", 2.0))
-
-    if contagem != "Todos":
-        condicoes.append("Isencao = @isencao")
-        parametros.append(bigquery.ScalarQueryParameter("isencao", "INT64", ISENCOES[contagem]))
-
-    where_clause = "WHERE " + " AND ".join(condicoes)
-
-    query = f"""
-        SELECT
-            CAST(municipio AS STRING) AS municipio,
-            COUNT(*) AS contagem,
-            COALESCE(SUM({campo_arrecadacao}), 0) AS arrecadacao
-        FROM {TABLE_PATH}
-        {where_clause}
-        GROUP BY municipio
-        ORDER BY arrecadacao DESC
-    """
-    return executar_consulta(query, query_parameters=parametros)
-
-@st.cache_data(ttl=900, show_spinner=False)
-def carregar_sumario_municipio(uf, municipio, contagem, tamanho, campo_arrecadacao):
+def carregar_tabela_municipios(uf, municipio, contagem, tamanho, campo_arrecadacao):
     where, params = montar_filtros(uf, municipio, contagem, tamanho)
     query = f"""
         SELECT
@@ -453,101 +422,74 @@ else:
         st.plotly_chart(fig_arr, use_container_width=True)
 
 # ============================================================
-# COMPARAÇÃO E GRÁFICOS DE BARRAS (SEMPRE VISÍVEIS)
+# COMPARAÇÃO BRASIL (Apenas quando "Brasil" está selecionado)
+# ============================================================
+if uf == "Brasil" and municipio == "Todos":
+    st.divider()
+    st.header("Brasil — comparação entre as UFs")
+    por_uf = carregar_resumo_uf(contagem, tamanho, campo_arrecadacao)
+    if not por_uf.empty:
+        c1, c2 = st.columns(2)
+        with c1:
+            fig = px.bar(
+                por_uf.sort_values("contagem"),
+                x="contagem",
+                y="uf",
+                orientation="h",
+                title="Contagem de imóveis por UF",
+                labels={"contagem": "Contagem", "uf": "UF"},
+                text_auto=True,
+            )
+            st.plotly_chart(fig, use_container_width=True)
+        with c2:
+            fig = px.bar(
+                por_uf.sort_values("arrecadacao"),
+                x="arrecadacao",
+                y="uf",
+                orientation="h",
+                title=f"Arrecadação {arrecadacao_label} por UF",
+                labels={"arrecadacao": "Arrecadação (R$)", "uf": "UF"},
+                text_auto=".2s",
+            )
+            st.plotly_chart(fig, use_container_width=True)
+
+# ============================================================
+# TABELA UNIFICADA POR MUNICÍPIO
 # ============================================================
 st.divider()
+st.header("Dados Detalhados por Município")
 
-if uf == "Brasil":
-    st.header("Brasil — comparação entre as UFs")
-    label_y = "uf"
-    titulo_contagem = "Contagem de imóveis por UF"
-    titulo_arrecadacao = f"Arrecadação {arrecadacao_label} por UF"
-    por_grafico = carregar_resumo_uf(contagem, tamanho, campo_arrecadacao)
+mapeamento_colunas = {
+    "uf": "UF",
+    "codigo_ibge": "Código IBGE",
+    "municipio": "Município",
+    "codigo_do_imovel": "Código do Imóvel",
+    "denominacao": "Denominação",
+    "at_imovel": "Área Total (ha)",
+    "gu_calc": "GU Calc (%)",
+    "itr_gu_fixo": "ITR GU Fixo (R$)",
+    "itr_gu_calc": "ITR GU Calc (R$)"
+}
+
+with st.spinner("Carregando tabela de municípios no BigQuery..."):
+    df_municipios = carregar_tabela_municipios(uf, municipio, contagem, tamanho, campo_arrecadacao)
+
+if df_municipios.empty:
+    st.info("Nenhum registro encontrado para a combinação de filtros selecionada.")
 else:
-    st.header(f"Comparação entre Municípios — {uf}")
-    label_y = "municipio"
-    titulo_contagem = f"Contagem de imóveis por Município ({uf})"
-    titulo_arrecadacao = f"Arrecadação {arrecadacao_label} por Município ({uf})"
-    por_grafico = carregar_resumo_municipio_grafico(uf, contagem, tamanho, campo_arrecadacao)
+    df_fmt = df_municipios.copy()
+    df_fmt["at_imovel"] = df_fmt["at_imovel"].map(lambda x: formatar_decimal(valor_numerico(x)))
+    df_fmt["gu_calc"] = df_fmt["gu_calc"].map(lambda x: formatar_decimal(valor_numerico(x)))
+    df_fmt["itr_gu_fixo"] = df_fmt["itr_gu_fixo"].map(moeda)
+    df_fmt["itr_gu_calc"] = df_fmt["itr_gu_calc"].map(moeda)
+    df_fmt = df_fmt.rename(columns=mapeamento_colunas)
 
-if not por_grafico.empty:
-    c1, c2 = st.columns(2)
-    with c1:
-        # Pega no máximo os top 20 para o gráfico não ficar espremido
-        df_cont = por_grafico.sort_values("contagem").tail(20)
-        fig1 = px.bar(
-            df_cont,
-            x="contagem",
-            y=label_y,
-            orientation="h",
-            title=titulo_contagem,
-            labels={"contagem": "Contagem", label_y: "Município" if label_y == "municipio" else "UF"},
-            text_auto=True,
-        )
-        fig1.update_layout(yaxis={'categoryorder': 'value ascending'})
-        st.plotly_chart(fig1, use_container_width=True)
-    with c2:
-        df_arr = por_grafico.sort_values("arrecadacao").tail(20)
-        fig2 = px.bar(
-            df_arr,
-            x="arrecadacao",
-            y=label_y,
-            orientation="h",
-            title=titulo_arrecadacao,
-            labels={"arrecadacao": "Arrecadação (R$)", label_y: "Município" if label_y == "municipio" else "UF"},
-            text_auto=".2s",
-        )
-        fig2.update_layout(yaxis={'categoryorder': 'value ascending'})
-        st.plotly_chart(fig2, use_container_width=True)
-else:
-    st.info("Não foram encontrados dados para gerar os gráficos de barras com os filtros selecionados.")
+    if uf != "Brasil" and municipio == "Todos":
+        st.caption(f"Mostrando todos os municípios do estado: **{uf}** ({len(df_fmt)} registros).")
+    elif municipio != "Todos":
+        st.caption(f"Filtrado para o município: **{municipio} ({uf})** ({len(df_fmt)} registros).")
 
-# ============================================================
-# TABELAS DETALHADAS
-# ============================================================
-with st.expander("Tabelas detalhadas e sumarizadas"):
-    st.warning("A tabela por código IBGE é uma amostra limitada; a tabela por município traz os dados completos.")
-    if st.button("Carregar tabelas", key="carregar_tabelas"):
-        with st.spinner("Carregando tabelas no BigQuery..."):
-            detalhada = carregar_detalhada(uf, municipio, contagem, tamanho, campo_arrecadacao)
-            sumario_municipio = carregar_sumario_municipio(uf, municipio, contagem, tamanho, campo_arrecadacao)
-
-        tab_ibge, tab_municipio = st.tabs(["Por código IBGE", "Por município"])
-        
-        mapeamento_colunas = {
-            "uf": "UF",
-            "codigo_ibge": "Código IBGE",
-            "municipio": "Município",
-            "codigo_do_imovel": "Código do Imóvel",
-            "denominacao": "Denominação",
-            "at_imovel": "Área Total (ha)",
-            "gu_calc": "GU Calc (%)",
-            "itr_gu_fixo": "ITR GU Fixo (R$)",
-            "itr_gu_calc": "ITR GU Calc (R$)"
-        }
-
-        with tab_ibge:
-            st.caption(f"Amostra de até {LIMITE_TABELA_DETALHADA} registros.")
-            detalhada_fmt = detalhada.copy()
-            if not detalhada_fmt.empty:
-                detalhada_fmt["at_imovel"] = detalhada_fmt["at_imovel"].map(lambda x: formatar_decimal(valor_numerico(x)))
-                detalhada_fmt["gu_calc"] = detalhada_fmt["gu_calc"].map(lambda x: formatar_decimal(valor_numerico(x)))
-                detalhada_fmt["itr_gu_fixo"] = detalhada_fmt["itr_gu_fixo"].map(moeda)
-                detalhada_fmt["itr_gu_calc"] = detalhada_fmt["itr_gu_calc"].map(moeda)
-                detalhada_fmt = detalhada_fmt.rename(columns=mapeamento_colunas)
-                
-            st.dataframe(detalhada_fmt, use_container_width=True, hide_index=True)
-
-        with tab_municipio:
-            tabela_municipio = sumario_municipio.copy()
-            if not tabela_municipio.empty:
-                tabela_municipio["at_imovel"] = tabela_municipio["at_imovel"].map(lambda x: formatar_decimal(valor_numerico(x)))
-                tabela_municipio["gu_calc"] = tabela_municipio["gu_calc"].map(lambda x: formatar_decimal(valor_numerico(x)))
-                tabela_municipio["itr_gu_fixo"] = tabela_municipio["itr_gu_fixo"].map(moeda)
-                tabela_municipio["itr_gu_calc"] = tabela_municipio["itr_gu_calc"].map(moeda)
-                tabela_municipio = tabela_municipio.rename(columns=mapeamento_colunas)
-                
-            st.dataframe(tabela_municipio, use_container_width=True, hide_index=True)
+    st.dataframe(df_fmt, use_container_width=True, hide_index=True)
 
 st.divider()
 st.caption("Dashboard ITR | BigQuery | Filtros dinâmicos")
