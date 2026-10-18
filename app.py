@@ -17,7 +17,6 @@ PROJECT_ID = "pesquisa-itr"
 DATASET_ID = "dados_itr"
 TABLE_ID = "itr_pronto"
 TABLE_PATH = f"`{PROJECT_ID}.{DATASET_ID}.{TABLE_ID}`"
-LIMITE_TABELA_DETALHADA = 500
 
 ARRECADACOES = {
     "ITR_GU_FIXO": "GREATEST(itr_gu_fixo, 10.00)",
@@ -213,7 +212,7 @@ def carregar_resumo_uf(contagem, tamanho, campo_arrecadacao):
     return executar_consulta(query, params)
 
 @st.cache_data(ttl=900, show_spinner=False)
-def carregar_tabela_municipios(uf, municipio, contagem, tamanho, campo_arrecadacao):
+def carregar_tabela_unica(uf, municipio, contagem, tamanho, campo_arrecadacao):
     where, params = montar_filtros(uf, municipio, contagem, tamanho)
     query = f"""
         SELECT
@@ -229,26 +228,6 @@ def carregar_tabela_municipios(uf, municipio, contagem, tamanho, campo_arrecadac
         FROM {TABLE_PATH}
         {where}
         ORDER BY municipio, denominacao
-    """
-    return executar_consulta(query, params)
-
-@st.cache_data(ttl=900, show_spinner=False)
-def carregar_detalhada(uf, municipio, contagem, tamanho, campo_arrecadacao):
-    where, params = montar_filtros(uf, municipio, contagem, tamanho)
-    query = f"""
-        SELECT
-            uf,
-            codigo_do_municipio_ibge AS codigo_ibge,
-            municipio,
-            codigo_do_imovel,
-            denominacao,
-            at_imovel,
-            gu_calc,
-            itr_gu_fixo,
-            itr_gu_calc
-        FROM {TABLE_PATH}
-        {where}
-        LIMIT {LIMITE_TABELA_DETALHADA}
     """
     return executar_consulta(query, params)
 
@@ -448,48 +427,4 @@ if uf == "Brasil" and municipio == "Todos":
                 y="uf",
                 orientation="h",
                 title=f"Arrecadação {arrecadacao_label} por UF",
-                labels={"arrecadacao": "Arrecadação (R$)", "uf": "UF"},
-                text_auto=".2s",
-            )
-            st.plotly_chart(fig, use_container_width=True)
-
-# ============================================================
-# TABELA UNIFICADA POR MUNICÍPIO
-# ============================================================
-st.divider()
-st.header("Dados Detalhados por Município")
-
-mapeamento_colunas = {
-    "uf": "UF",
-    "codigo_ibge": "Código IBGE",
-    "municipio": "Município",
-    "codigo_do_imovel": "Código do Imóvel",
-    "denominacao": "Denominação",
-    "at_imovel": "Área Total (ha)",
-    "gu_calc": "GU Calc (%)",
-    "itr_gu_fixo": "ITR GU Fixo (R$)",
-    "itr_gu_calc": "ITR GU Calc (R$)"
-}
-
-with st.spinner("Carregando tabela de municípios no BigQuery..."):
-    df_municipios = carregar_tabela_municipios(uf, municipio, contagem, tamanho, campo_arrecadacao)
-
-if df_municipios.empty:
-    st.info("Nenhum registro encontrado para a combinação de filtros selecionada.")
-else:
-    df_fmt = df_municipios.copy()
-    df_fmt["at_imovel"] = df_fmt["at_imovel"].map(lambda x: formatar_decimal(valor_numerico(x)))
-    df_fmt["gu_calc"] = df_fmt["gu_calc"].map(lambda x: formatar_decimal(valor_numerico(x)))
-    df_fmt["itr_gu_fixo"] = df_fmt["itr_gu_fixo"].map(moeda)
-    df_fmt["itr_gu_calc"] = df_fmt["itr_gu_calc"].map(moeda)
-    df_fmt = df_fmt.rename(columns=mapeamento_colunas)
-
-    if uf != "Brasil" and municipio == "Todos":
-        st.caption(f"Mostrando todos os municípios do estado: **{uf}** ({len(df_fmt)} registros).")
-    elif municipio != "Todos":
-        st.caption(f"Filtrado para o município: **{municipio} ({uf})** ({len(df_fmt)} registros).")
-
-    st.dataframe(df_fmt, use_container_width=True, hide_index=True)
-
-st.divider()
-st.caption("Dashboard ITR | BigQuery | Filtros dinâmicos")
+                labels={"arrecadacao": "Arrecadação (R
