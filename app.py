@@ -427,4 +427,50 @@ if uf == "Brasil" and municipio == "Todos":
                 y="uf",
                 orientation="h",
                 title=f"Arrecadação {arrecadacao_label} por UF",
-                labels={"arrecadacao": "Arrecadação (R
+                labels={"arrecadacao": "Arrecadação (R$)", "uf": "UF"},
+                text_auto=".2s",
+            )
+            st.plotly_chart(fig, use_container_width=True)
+
+# ============================================================
+# TABELA ÚNICA DE DADOS (DIRETA NA TELA)
+# ============================================================
+st.divider()
+st.header("Tabela de Dados do ITR")
+
+mapeamento_colunas = {
+    "uf": "UF",
+    "codigo_ibge": "Código IBGE",
+    "municipio": "Município",
+    "codigo_do_imovel": "Código do Imóvel",
+    "denominacao": "Denominação",
+    "at_imovel": "Área Total (ha)",
+    "gu_calc": "GU Calc (%)",
+    "itr_gu_fixo": "ITR GU Fixo (R$)",
+    "itr_gu_calc": "ITR GU Calc (R$)"
+}
+
+with st.spinner("Carregando dados no BigQuery..."):
+    df_tabela = carregar_tabela_unica(uf, municipio, contagem, tamanho, campo_arrecadacao)
+
+if df_tabela.empty:
+    st.info("Nenhum registro encontrado com os filtros selecionados.")
+else:
+    df_fmt = df_tabela.copy()
+    df_fmt["at_imovel"] = df_fmt["at_imovel"].map(lambda x: formatar_decimal(valor_numerico(x)))
+    df_fmt["gu_calc"] = df_fmt["gu_calc"].map(lambda x: formatar_decimal(valor_numerico(x)))
+    df_fmt["itr_gu_fixo"] = df_fmt["itr_gu_fixo"].map(moeda)
+    df_fmt["itr_gu_calc"] = df_fmt["itr_gu_calc"].map(moeda)
+    df_fmt = df_fmt.rename(columns=mapeamento_colunas)
+
+    if uf != "Brasil" and municipio == "Todos":
+        st.caption(f"Mostrando todos os municípios do estado: **{uf}** ({len(df_fmt)} registros).")
+    elif municipio != "Todos":
+        st.caption(f"Filtrado para o município: **{municipio} ({uf})** ({len(df_fmt)} registros).")
+    else:
+        st.caption(f"Visão Geral — Brasil ({len(df_fmt)} registros).")
+
+    st.dataframe(df_fmt, use_container_width=True, hide_index=True)
+
+st.divider()
+st.caption("Dashboard ITR | BigQuery | Filtros dinâmicos")
