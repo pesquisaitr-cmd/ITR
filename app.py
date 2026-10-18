@@ -433,7 +433,7 @@ if uf == "Brasil" and municipio == "Todos":
             st.plotly_chart(fig, use_container_width=True)
 
 # ============================================================
-# TABELA ÚNICA DE DADOS (DIRETA NA TELA)
+# TABELA ÚNICA DE DADOS (DIRETA NA TELA — SEM EXPANDER E SEM ABAS)
 # ============================================================
 st.divider()
 st.header("Tabela de Dados do ITR")
