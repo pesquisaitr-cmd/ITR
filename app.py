@@ -175,11 +175,23 @@ st.markdown("---")
 # -----------------------------------------------------------------------------
 # TABELA DETALHADA E VALIDAÇÃO DE FILTRO
 # -----------------------------------------------------------------------------
-with st.expander("Tabelas detalhadas selecione um Estado e/ou Município"):
+
+with st.expander(
+    "Tabela detalhada e validação de filtro",
+    expanded=True
+):
     if estado_selecionado == "Brasil":
-        st.warning("⚠️ Por favor, selecione um Estado (UF) e/ou Município específico no painel lateral para visualizar os dados detalhados.")
+        st.info(
+            "Selecione um Estado (UF) para visualizar os dados detalhados."
+        )
     else:
+        st.write(
+            f"Quantidade de registros após os filtros: "
+            f"**{len(df_filtrado):,}**".replace(",", ".")
+        )
+
         st.dataframe(
             df_filtrado,
-            use_container_width=True
+            use_container_width=True,
+            hide_index=True
         )
