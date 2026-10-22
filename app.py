@@ -15,18 +15,20 @@ st.set_page_config(
 st.title("📊 Painel de Análise - ITR (Imposto Territorial Rural)")
 
 # -----------------------------------------------------------------------------
+# BANNER DE TESTE DE DEPLOY (REMOVER APÓS CONFIRMAR O BUILD)
+# -----------------------------------------------------------------------------
+st.error("🚀 TESTE DE DEPLOY: SE VOCÊ ESTÁ VENDO ESTA MENSAGEM, O CLOUD BUILD ATUALIZOU O CÓDIGO CORRETAMENTE!")
+
+# -----------------------------------------------------------------------------
 # CLIENTE BIGQUERY E CARREGAMENTO DE DADOS (COM CACHE)
 # -----------------------------------------------------------------------------
 @st.cache_resource
 def get_bigquery_client():
-    return bigquery.Client(
-        project="pesquisa-itr",
-        location="southamerica-east1"
-    )
+    return bigquery.Client(project="pesquisa-itr")
+
 @st.cache_data(ttl=3600)
 def load_data():
     client = get_bigquery_client()
-
     query = """
         SELECT 
             codigo_ibge,
@@ -37,15 +39,11 @@ def load_data():
             numero_imoveis,
             area_total,
             arrecadacao
-        FROM `pesquisa-itr.dados_itr.itr_pronto`
+        FROM `pesquisa-itr.itr_dataset.itr_pronto`
     """
-
-    query_job = client.query(
-        query,
-        location="southamerica-east1"
-    )
-
-    return query_job.to_dataframe()
+    query_job = client.query(query)
+    df = query_job.to_dataframe()
+    return df
 
 with st.spinner("Carregando dados do BigQuery..."):
     try:
@@ -182,23 +180,11 @@ st.markdown("---")
 # -----------------------------------------------------------------------------
 # TABELA DETALHADA E VALIDAÇÃO DE FILTRO
 # -----------------------------------------------------------------------------
-
-with st.expander(
-    "Tabela detalhada e validação de filtro",
-    expanded=True
-):
+with st.expander("Tabelas detalhadas selecione um Estado e/ou Município"):
     if estado_selecionado == "Brasil":
-        st.info(
-            "Selecione um Estado (UF) para visualizar os dados detalhados."
-        )
+        st.warning("⚠️ Por favor, selecione um Estado (UF) e/ou Município específico no painel lateral para visualizar os dados detalhados.")
     else:
-        st.write(
-            f"Quantidade de registros após os filtros: "
-            f"**{len(df_filtrado):,}**".replace(",", ".")
-        )
-
         st.dataframe(
             df_filtrado,
-            use_container_width=True,
-            hide_index=True
+            use_container_width=True
         )
