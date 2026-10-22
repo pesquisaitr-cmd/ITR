@@ -24,7 +24,8 @@ st.error("🚀 TESTE DE DEPLOY: SE VOCÊ ESTÁ VENDO ESTA MENSAGEM, O CLOUD BUIL
 # -----------------------------------------------------------------------------
 @st.cache_resource
 def get_bigquery_client():
-    return bigquery.Client(project="pesquisa-itr")
+    # Especifica a região exata do dataset (southamerica-east1)
+    return bigquery.Client(project="pesquisa-itr", location="southamerica-east1")
 
 @st.cache_data(ttl=3600)
 def load_data():
@@ -41,10 +42,10 @@ def load_data():
             arrecadacao
         FROM `pesquisa-itr.itr_dataset.itr_pronto`
     """
-    query_job = client.query(query)
+    # Passa explicitamente a localização para o job da query
+    query_job = client.query(query, location="southamerica-east1")
     df = query_job.to_dataframe()
     return df
-
 with st.spinner("Carregando dados do BigQuery..."):
     try:
         df_raw = load_data()
