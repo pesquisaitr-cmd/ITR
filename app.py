@@ -41,13 +41,15 @@ def load_data():
         FROM `pesquisa-itr.itr_dataset.itr_pronto`
     """
     query_job = client.query(query, location="southamerica-east1")
-    return query_job.to_dataframe()with st.spinner("Carregando dados do BigQuery..."):
+    return query_job.to_dataframe()
+
+# O 'with' tem de ficar obrigatoriamente numa nova linha abaixo da função!
+with st.spinner("Carregando dados do BigQuery..."):
     try:
         df_raw = load_data()
     except Exception as e:
         st.error(f"Erro ao carregar dados do BigQuery: {e}")
         st.stop()
-
 # -----------------------------------------------------------------------------
 # BARRA LATERAL - FILTROS
 # -----------------------------------------------------------------------------
