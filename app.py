@@ -24,7 +24,8 @@ st.error("🚀 TESTE DE DEPLOY: SE VOCÊ ESTÁ VENDO ESTA MENSAGEM, O CLOUD BUIL
 # -----------------------------------------------------------------------------
 @st.cache_resource
 def get_bigquery_client():
-    return bigquery.Client(project="pesquisa-itr", location="southamerica-east1")
+    return bigquery.Client(project="pesquisa-itr", location="US")
+
 @st.cache_data(ttl=3600)
 def load_data():
     client = get_bigquery_client()
@@ -40,16 +41,16 @@ def load_data():
             arrecadacao
         FROM `pesquisa-itr.itr_dataset.itr_pronto`
     """
-    query_job = client.query(query, location="southamerica-east1")
+    query_job = client.query(query, location="US")
     return query_job.to_dataframe()
 
-# O 'with' tem de ficar obrigatoriamente numa nova linha abaixo da função!
 with st.spinner("Carregando dados do BigQuery..."):
     try:
         df_raw = load_data()
     except Exception as e:
         st.error(f"Erro ao carregar dados do BigQuery: {e}")
         st.stop()
+
 # -----------------------------------------------------------------------------
 # BARRA LATERAL - FILTROS
 # -----------------------------------------------------------------------------
@@ -116,7 +117,6 @@ st.markdown("---")
 # -----------------------------------------------------------------------------
 st.subheader("📈 Análises Comparativas (Top 10)")
 
-# Definição dinâmica do nível de agregação
 if estado_selecionado == "Brasil":
     coluna_agrupamento = "uf"
     label_eixo = "Estado (UF)"
@@ -166,7 +166,6 @@ fig_arrecadacao = px.bar(
 )
 fig_arrecadacao.update_layout(xaxis={'categoryorder': 'total descending'})
 
-# Exibição dos dois gráficos lado a lado
 col_graf1, col_graf2 = st.columns(2)
 with col_graf1:
     st.plotly_chart(fig_imoveis, use_container_width=True)
