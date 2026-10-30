@@ -263,19 +263,28 @@ with col_graf2:
 st.markdown("---")
 
 # -----------------------------------------------------------------------------
-# TABELA DETALHADA - UMA ÚNICA TABELA, SEM ABAS
+# TABELA DETALHADA - COM LIMITAÇÃO DE SEGURANÇA PARA EVITAR LOOPING/TRAVAMENTO
 # -----------------------------------------------------------------------------
 st.subheader("Tabela detalhada e validação dos filtros")
-st.write(f"Registros após os filtros: **{len(df_filtrado):,}**".replace(",", "."))
+total_registros = len(df_filtrado)
+st.write(f"Registros após os filtros: **{total_registros:,}**".replace(",", "."))
+
+# Limita a exibição visual na tela para no máximo 1.000 linhas para não travar o navegador/memória
+LIMITE_EXIBICAO = 50
+if total_registros > LIMITE_EXIBICAO:
+    st.info(f"ℹ️ Exibindo as primeiras {LIMITE_EXIBICAO:,} linhas na tabela abaixo por motivos de performance. Utilize o botão de download para baixar a base completa filtrada.".replace(",", "."))
+    df_para_mostrar = df_filtrado.head(LIMITE_EXIBICAO)
+else:
+    df_para_mostrar = df_filtrado
 
 st.dataframe(
-    df_filtrado,
+    df_para_mostrar,
     use_container_width=True,
     hide_index=True,
 )
 
 st.download_button(
-    "Baixar dados filtrados em CSV",
+    "Baixar dados filtrados em CSV (Completo)",
     data=df_filtrado.to_csv(index=False).encode("utf-8-sig"),
     file_name="dados_itr_filtrados.csv",
     mime="text/csv",
