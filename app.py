@@ -39,7 +39,7 @@ def load_data():
             numero_imoveis,
             area_total,
             arrecadacao
-        FROM `pesquisa-itr.itr_dataset.itr_pronto`
+        FROM `pesquisa-itr.dados_itr.itr_pronto`
     """
     query_job = client.query(query, location="southamerica-east1")
     return query_job.to_dataframe()
