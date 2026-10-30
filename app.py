@@ -31,7 +31,7 @@ def load_data():
     client = get_bigquery_client()
     query = """
         SELECT 
-            codigo_ibge,
+            codigo_do_municipio_ibge,
             uf,
             municipio,
             tamanho_propriedade,
