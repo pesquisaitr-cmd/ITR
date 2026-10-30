@@ -34,7 +34,7 @@ def load_data():
             codigo_do_municipio_ibge,
             uf,
             municipio,
-            tamanho_propriedade,
+            at_imovel,
             tipo_arrecadacao,
             numero_imoveis,
             area_total,
