@@ -9,86 +9,43 @@ import plotly.express as px
 st.set_page_config(
     page_title="Dashboard ITR",
     page_icon="📊",
-    layout="wide",
+    layout="wide"
 )
 
 st.title("📊 Painel de Análise - ITR (Imposto Territorial Rural)")
 
 # -----------------------------------------------------------------------------
-# BIGQUERY E CARREGAMENTO DOS DADOS
+# CLIENTE BIGQUERY E CARREGAMENTO DE DADOS (COM CACHE)
 # -----------------------------------------------------------------------------
-PROJECT_ID = "pesquisa-itr"
-LOCATION = "southamerica-east1"
-TABLE_PATH = "`pesquisa-itr.dados_itr.itr_pronto`"
-
-
 @st.cache_resource
 def get_bigquery_client():
-    return bigquery.Client(project=PROJECT_ID, location=LOCATION)
-
-
+    return bigquery.Client(
+        project="pesquisa-itr",
+        location="southamerica-east1"
+    )
 @st.cache_data(ttl=3600)
 def load_data():
     client = get_bigquery_client()
 
-    # Nomes conferidos no esquema da tabela itr_pronto.
-    query = f"""
-        SELECT
+    query = """
+        SELECT 
+            codigo_ibge,
             uf,
-            codigo_do_municipio_ibge,
             municipio,
-            codigo_do_imovel,
-            denominacao,
-            at_imovel,
+            tamanho_propriedade,
+            tipo_arrecadacao,
+            numero_imoveis,
             area_total,
-            isencao,
-            faixa_at,
-            floresta,
-            pastagem,
-            silvicultura,
-            lavouras,
-            lavoura_aptid_o_boa,
-            lavoura_aptid_o_regular,
-            lavoura_aptid_o_restrita,
-            faixa_gu,
-            gu_fixo,
-            gu_calc,
-            aliquota_fixa,
-            aliquota_calc,
-            itr_gu_fixo,
-            itr_gu_calc
-        FROM {TABLE_PATH}
+            arrecadacao
+        FROM `pesquisa-itr.dados_itr.itr_pronto`
     """
 
-    query_job = client.query(query, location=LOCATION)
-    df = query_job.to_dataframe()
+    query_job = client.query(
+        query,
+        location="southamerica-east1"
+    )
 
-    # Garante que as colunas numéricas possam ser agregadas mesmo quando
-    # alguma linha vier nula ou com tipo diferente da origem externa.
-    numeric_columns = [
-        "at_imovel",
-        "area_total",
-        "isencao",
-        "floresta",
-        "pastagem",
-        "silvicultura",
-        "lavouras",
-        "lavoura_aptid_o_boa",
-        "lavoura_aptid_o_regular",
-        "lavoura_aptid_o_restrita",
-        "gu_fixo",
-        "gu_calc",
-        "aliquota_fixa",
-        "aliquota_calc",
-        "itr_gu_fixo",
-        "itr_gu_calc",
-    ]
-    for column in numeric_columns:
-        if column in df.columns:
-            df[column] = pd.to_numeric(df[column], errors="coerce")
-
-    return df
-
+    return query_job.to_dataframe()
 
 with st.spinner("Carregando dados do BigQuery..."):
     try:
@@ -98,194 +55,150 @@ with st.spinner("Carregando dados do BigQuery..."):
         st.stop()
 
 # -----------------------------------------------------------------------------
-# FILTROS
+# BARRA LATERAL - FILTROS
 # -----------------------------------------------------------------------------
 st.sidebar.header("🔍 Filtros de Pesquisa")
 
-lista_ufs = ["Brasil"] + sorted(df_raw["uf"].dropna().astype(str).unique().tolist())
-estado_selecionado = st.sidebar.selectbox(
-    "Selecione o Estado (UF)", lista_ufs
-)
+# 1. Filtro de Estado (UF)
+lista_ufs = ["Brasil"] + sorted(list(df_raw["uf"].dropna().unique()))
+estado_selecionado = st.sidebar.selectbox("Selecione o Estado (UF)", lista_ufs)
 
+# 2. Filtro de Município (Dinâmico com base no Estado)
 if estado_selecionado == "Brasil":
     municipios_disponiveis = ["Todos"]
 else:
-    df_uf = df_raw[df_raw["uf"].astype(str) == estado_selecionado]
-    municipios_disponiveis = ["Todos"] + sorted(
-        df_uf["municipio"].dropna().astype(str).unique().tolist()
-    )
+    df_uf = df_raw[df_raw["uf"] == estado_selecionado]
+    municipios_disponiveis = ["Todos"] + sorted(list(df_uf["municipio"].dropna().unique()))
 
-municipio_selecionado = st.sidebar.selectbox(
-    "Selecione o Município", municipios_disponiveis
-)
+municipio_selecionado = st.sidebar.selectbox("Selecione o Município", municipios_disponiveis)
 
-lista_faixas_at = ["Todas"] + sorted(
-    df_raw["faixa_at"].dropna().astype(str).unique().tolist()
-)
-faixa_at_selecionada = st.sidebar.selectbox(
-    "Faixa de área do imóvel", lista_faixas_at
-)
+# 3. Filtro de Tamanho da Propriedade
+lista_tamanhos = ["Todas"] + sorted(list(df_raw["tamanho_propriedade"].dropna().unique()))
+tamanho_selecionado = st.sidebar.selectbox("Tamanho da Propriedade", lista_tamanhos)
 
-lista_faixas_gu = ["Todas"] + sorted(
-    df_raw["faixa_gu"].dropna().astype(str).unique().tolist()
-)
-faixa_gu_selecionada = st.sidebar.selectbox(
-    "Faixa de GU", lista_faixas_gu
-)
+# 4. Filtro de Tipo de Arrecadação
+lista_arrecadacao = sorted(list(df_raw["tipo_arrecadacao"].dropna().unique()))
+if lista_arrecadacao:
+    arrecadacao_selecionada = st.sidebar.selectbox("Tipo de Arrecadação", lista_arrecadacao)
+else:
+    arrecadacao_selecionada = None
 
 # -----------------------------------------------------------------------------
-# APLICAÇÃO DOS FILTROS
+# APLICAÇÃO DOS FILTROS AO DATAFRAME
 # -----------------------------------------------------------------------------
 df_filtrado = df_raw.copy()
 
 if estado_selecionado != "Brasil":
-    df_filtrado = df_filtrado[
-        df_filtrado["uf"].astype(str) == estado_selecionado
-    ]
+    df_filtrado = df_filtrado[df_filtrado["uf"] == estado_selecionado]
 
 if municipio_selecionado != "Todos":
-    df_filtrado = df_filtrado[
-        df_filtrado["municipio"].astype(str) == municipio_selecionado
-    ]
+    df_filtrado = df_filtrado[df_filtrado["municipio"] == municipio_selecionado]
 
-if faixa_at_selecionada != "Todas":
-    df_filtrado = df_filtrado[
-        df_filtrado["faixa_at"].astype(str) == faixa_at_selecionada
-    ]
+if tamanho_selecionado != "Todas":
+    df_filtrado = df_filtrado[df_filtrado["tamanho_propriedade"] == tamanho_selecionado]
 
-if faixa_gu_selecionada != "Todas":
-    df_filtrado = df_filtrado[
-        df_filtrado["faixa_gu"].astype(str) == faixa_gu_selecionada
-    ]
+if arrecadacao_selecionada:
+    df_filtrado = df_filtrado[df_filtrado["tipo_arrecadacao"] == arrecadacao_selecionada]
 
 # -----------------------------------------------------------------------------
-# KPIs
+# CARTÕES DE MÉTRICAS (KPIs)
 # -----------------------------------------------------------------------------
-quantidade_imoveis = len(df_filtrado)
-total_area = df_filtrado["area_total"].sum(min_count=1)
-total_itr_gu_calc = df_filtrado["itr_gu_calc"].sum(min_count=1)
-
-if pd.isna(total_area):
-    total_area = 0.0
-if pd.isna(total_itr_gu_calc):
-    total_itr_gu_calc = 0.0
-
 kpi1, kpi2, kpi3 = st.columns(3)
-kpi1.metric(
-    "Nº de imóveis",
-    f"{quantidade_imoveis:,.0f}".replace(",", "."),
-)
-kpi2.metric(
-    "Área total (ha)",
-    f"{total_area:,.2f}".replace(",", "X")
-    .replace(".", ",")
-    .replace("X", "."),
-)
-kpi3.metric(
-    "ITR GU calculado (R$)",
-    f"R$ {total_itr_gu_calc:,.2f}".replace(",", "X")
-    .replace(".", ",")
-    .replace("X", "."),
-)
+
+total_imoveis = df_filtrado["numero_imoveis"].sum()
+total_area = df_filtrado["area_total"].sum()
+total_arrecadacao = df_filtrado["arrecadacao"].sum()
+
+kpi1.metric("Nº Total de Imóveis", f"{total_imoveis:,.0f}".replace(",", "."))
+kpi2.metric("Área Total (ha)", f"{total_area:,.2f}".replace(",", "X").replace(".", ",").replace("X", "."))
+kpi3.metric("Arrecadação Total (R$)", f"R$ {total_arrecadacao:,.2f}".replace(",", "X").replace(".", ",").replace("X", "."))
 
 st.markdown("---")
 
 # -----------------------------------------------------------------------------
-# GRÁFICOS TOP 10
+# GRÁFICOS DINÂMICOS (TOP 10 ESTADOS OU TOP 10 MUNICÍPIOS)
 # -----------------------------------------------------------------------------
 st.subheader("📈 Análises Comparativas (Top 10)")
 
+# Definição dinâmica do nível de agregação
 if estado_selecionado == "Brasil":
     coluna_agrupamento = "uf"
     label_eixo = "Estado (UF)"
-    titulo_imoveis = "Top 10 Estados por número de imóveis"
-    titulo_itr = "Top 10 Estados por ITR GU calculado"
+    titulo_imoveis = "Top 10 Estados por Número de Imóveis"
+    titulo_arrecadacao = f"Top 10 Estados por Arrecadação ({arrecadacao_selecionada if arrecadacao_selecionada else ''})"
 else:
     coluna_agrupamento = "municipio"
     label_eixo = "Município"
-    titulo_imoveis = (
-        f"Top 10 Municípios em {estado_selecionado} por número de imóveis"
-    )
-    titulo_itr = (
-        f"Top 10 Municípios em {estado_selecionado} por ITR GU calculado"
-    )
+    titulo_imoveis = f"Top 10 Municípios em {estado_selecionado} por Número de Imóveis"
+    titulo_arrecadacao = f"Top 10 Municípios em {estado_selecionado} por Arrecadação ({arrecadacao_selecionada if arrecadacao_selecionada else ''})"
 
-# Cada linha da tabela representa um imóvel; por isso, a contagem correta é
-# size(), e não a soma de uma coluna numero_imoveis que não existe na origem.
+# 1. Agregação e Gráfico de Número de Imóveis
 df_top_imoveis = (
-    df_filtrado.groupby(coluna_agrupamento, dropna=False)
-    .size()
-    .reset_index(name="quantidade_imoveis")
-    .sort_values("quantidade_imoveis", ascending=False)
+    df_filtrado.groupby(coluna_agrupamento)["numero_imoveis"]
+    .sum()
+    .reset_index()
+    .sort_values(by="numero_imoveis", ascending=False)
     .head(10)
 )
 
 fig_imoveis = px.bar(
     df_top_imoveis,
     x=coluna_agrupamento,
-    y="quantidade_imoveis",
+    y="numero_imoveis",
     title=titulo_imoveis,
-    labels={
-        coluna_agrupamento: label_eixo,
-        "quantidade_imoveis": "Nº de imóveis",
-    },
-    text_auto=True,
+    labels={coluna_agrupamento: label_eixo, "numero_imoveis": "Nº de Imóveis"},
+    text_auto=True
 )
-fig_imoveis.update_layout(xaxis={"categoryorder": "total descending"})
+fig_imoveis.update_layout(xaxis={'categoryorder': 'total descending'})
 
-df_top_itr = (
-    df_filtrado.groupby(coluna_agrupamento, dropna=False)["itr_gu_calc"]
-    .sum(min_count=1)
+# 2. Agregação e Gráfico de Arrecadação
+df_top_arrecadacao = (
+    df_filtrado.groupby(coluna_agrupamento)["arrecadacao"]
+    .sum()
     .reset_index()
-    .sort_values("itr_gu_calc", ascending=False)
+    .sort_values(by="arrecadacao", ascending=False)
     .head(10)
 )
 
-fig_itr = px.bar(
-    df_top_itr,
+fig_arrecadacao = px.bar(
+    df_top_arrecadacao,
     x=coluna_agrupamento,
-    y="itr_gu_calc",
-    title=titulo_itr,
-    labels={
-        coluna_agrupamento: label_eixo,
-        "itr_gu_calc": "ITR GU calculado (R$)",
-    },
-    text_auto=",.2f",
+    y="arrecadacao",
+    title=titulo_arrecadacao,
+    labels={coluna_agrupamento: label_eixo, "arrecadacao": "Arrecadação (R$)"},
+    text_auto=',.2f'
 )
-fig_itr.update_layout(xaxis={"categoryorder": "total descending"})
+fig_arrecadacao.update_layout(xaxis={'categoryorder': 'total descending'})
 
+# Exibição dos dois gráficos lado a lado
 col_graf1, col_graf2 = st.columns(2)
 with col_graf1:
     st.plotly_chart(fig_imoveis, use_container_width=True)
 with col_graf2:
-    st.plotly_chart(fig_itr, use_container_width=True)
+    st.plotly_chart(fig_arrecadacao, use_container_width=True)
 
 st.markdown("---")
 
 # -----------------------------------------------------------------------------
-# TABELA DETALHADA - COM LIMITAÇÃO DE SEGURANÇA PARA EVITAR LOOPING/TRAVAMENTO
+# TABELA DETALHADA E VALIDAÇÃO DE FILTRO
 # -----------------------------------------------------------------------------
-st.subheader("Tabela detalhada e validação dos filtros")
-total_registros = len(df_filtrado)
-st.write(f"Registros após os filtros: **{total_registros:,}**".replace(",", "."))
 
-# Limita a exibição visual na tela para no máximo 1.000 linhas para não travar o navegador/memória
-LIMITE_EXIBICAO = 50
-if total_registros > LIMITE_EXIBICAO:
-    st.info(f"ℹ️ Exibindo as primeiras {LIMITE_EXIBICAO:,} linhas na tabela abaixo por motivos de performance. Utilize o botão de download para baixar a base completa filtrada.".replace(",", "."))
-    df_para_mostrar = df_filtrado.head(LIMITE_EXIBICAO)
-else:
-    df_para_mostrar = df_filtrado
+with st.expander(
+    "Tabela detalhada e validação de filtro",
+    expanded=True
+):
+    if estado_selecionado == "Brasil":
+        st.info(
+            "Selecione um Estado (UF) para visualizar os dados detalhados."
+        )
+    else:
+        st.write(
+            f"Quantidade de registros após os filtros: "
+            f"**{len(df_filtrado):,}**".replace(",", ".")
+        )
 
-st.dataframe(
-    df_para_mostrar,
-    use_container_width=True,
-    hide_index=True,
-)
-
-st.download_button(
-    "Baixar dados filtrados em CSV (Completo)",
-    data=df_filtrado.to_csv(index=False).encode("utf-8-sig"),
-    file_name="dados_itr_filtrados.csv",
-    mime="text/csv",
-)
+        st.dataframe(
+            df_filtrado,
+            use_container_width=True,
+            hide_index=True
+        )
