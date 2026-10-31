@@ -57,7 +57,7 @@ def load_data():
             itr_gu_fixo,
             itr_gu_calc
         FROM {TABLE_PATH}
-        LIMIT 5000
+        LIMIT 1000000
         """
 
     query_job = client.query(query, location=LOCATION)
