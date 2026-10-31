@@ -62,7 +62,10 @@ def load_data():
     query_job = client.query(query, location=LOCATION)
     query_job.result(timeout=120)
 
-    return query_job.to_dataframe()
+    df = query_job.to_dataframe(
+        create_bqstorage_client=False
+
+    return df
 
     # Garante que as colunas numéricas possam ser agregadas mesmo quando
     # alguma linha vier nula ou com tipo diferente da origem externa.
