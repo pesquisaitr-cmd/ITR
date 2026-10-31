@@ -57,6 +57,7 @@ def load_data():
             itr_gu_fixo,
             itr_gu_calc
         FROM {TABLE_PATH}
+        LIMIT 5000
         """
 
     query_job = client.query(query, location=LOCATION)
@@ -64,6 +65,7 @@ def load_data():
 
     df = query_job.to_dataframe(
         create_bqstorage_client=False
+    )
 
     return df
 
