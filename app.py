@@ -31,7 +31,6 @@ def get_bigquery_client():
 def load_data():
     client = get_bigquery_client()
 
-    # Nomes conferidos no esquema da tabela itr_pronto.
     query = f"""
         SELECT
             uf,
@@ -58,10 +57,12 @@ def load_data():
             itr_gu_fixo,
             itr_gu_calc
         FROM {TABLE_PATH}
-    """
+        """
 
     query_job = client.query(query, location=LOCATION)
-    df = query_job.to_dataframe()
+    query_job.result(timeout=120)
+
+    return query_job.to_dataframe()
 
     # Garante que as colunas numéricas possam ser agregadas mesmo quando
     # alguma linha vier nula ou com tipo diferente da origem externa.
