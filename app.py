@@ -1,6 +1,8 @@
 import streamlit as st
 import pandas as pd
 import re
+from io import BytesIO
+from decimal import Decimal
 from google.cloud import bigquery
 import plotly.express as px
 
@@ -21,6 +23,65 @@ def format_br_number(value, decimals=2):
     if pd.isna(value):
         return "—"
     return f"{float(value):,.{decimals}f}".replace(",", "X").replace(".", ",").replace("X", ".")
+
+
+def make_xlsx(dataframe):
+    """Gera XLSX com valores numéricos nativos e formato de exibição pt-BR."""
+    from openpyxl import Workbook
+    from openpyxl.styles import Alignment, Font, PatternFill
+
+    output = BytesIO()
+    workbook = Workbook()
+    worksheet = workbook.active
+    worksheet.title = "Tabela detalhada"
+    worksheet.freeze_panes = "A2"
+    worksheet.sheet_view.showGridLines = False
+
+    headers = list(dataframe.columns)
+    for col_idx, header in enumerate(headers, start=1):
+        cell = worksheet.cell(row=1, column=col_idx, value=header)
+        cell.font = Font(name="Arial", bold=True, color="FFFFFF")
+        cell.fill = PatternFill("solid", fgColor="1F4E78")
+        cell.alignment = Alignment(horizontal="center", vertical="center", wrap_text=True)
+
+    text_columns = {"Código_IBGE", "Código do Imóvel"}
+    for row_idx, values in enumerate(dataframe.itertuples(index=False, name=None), start=2):
+        for col_idx, (header, value) in enumerate(zip(headers, values), start=1):
+            if pd.isna(value):
+                value = None
+            elif header in text_columns:
+                if isinstance(value, float) and value.is_integer():
+                    value = str(int(value))
+                else:
+                    value = str(value)
+            elif isinstance(value, Decimal):
+                value = float(value)
+            elif hasattr(value, "item"):
+                value = value.item()
+            cell = worksheet.cell(row=row_idx, column=col_idx, value=value)
+            if header in text_columns:
+                cell.number_format = "@"
+            elif isinstance(value, (int, float)) and not isinstance(value, bool):
+                # LCID 0416 identifica Português (Brasil) no formato do Excel.
+                cell.number_format = "[$-416]#,##0.00"
+
+    widths = {
+        "UF": 9,
+        "Código_IBGE": 16,
+        "Município": 24,
+        "Código do Imóvel": 24,
+        "Denominação": 32,
+        "Área do imóvel": 18,
+        "Arrecadação GU Fixo": 23,
+        "Arrecadação GU Calculado": 27,
+    }
+    for col_idx, header in enumerate(headers, start=1):
+        worksheet.column_dimensions[worksheet.cell(row=1, column=col_idx).column_letter].width = widths.get(header, 18)
+    worksheet.row_dimensions[1].height = 32
+    if headers:
+        worksheet.auto_filter.ref = worksheet.dimensions
+    workbook.save(output)
+    return output.getvalue()
 
 
 ARRECADACOES = {
@@ -304,11 +365,15 @@ try:
                 lambda value: format_br_number(value, 2)
             )
     st.dataframe(display_page_df, use_container_width=True, hide_index=True)
-    st.download_button(
-        "Baixar esta página em CSV",
-        data=page_df.to_csv(index=False).encode("utf-8-sig"),
-        file_name=f"dados_itr_pagina_{int(page)}.csv",
-        mime="text/csv",
-    )
+    try:
+        xlsx_data = make_xlsx(page_df)
+        st.download_button(
+            "Baixar esta página em Excel (.xlsx)",
+            data=xlsx_data,
+            file_name=f"dados_itr_pagina_{int(page)}.xlsx",
+            mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+        )
+    except Exception as exc:
+        st.error(f"Erro ao gerar o arquivo Excel: {exc}")
 except Exception as exc:
     st.error(f"Erro ao carregar a página da tabela: {exc}")
