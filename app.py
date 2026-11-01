@@ -61,7 +61,8 @@ def build_filters(uf, municipio, extensao):
     if municipio != "Todos":
         clauses.append("municipio = @municipio")
         params.append(bigquery.ScalarQueryParameter("municipio", "STRING", municipio))
-    return " WHERE " + " AND ".join(clauses), params
+    where_sql = " WHERE " + " AND ".join(clauses) if clauses else ""
+    return where_sql, params
 
 
 with st.sidebar:
