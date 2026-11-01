@@ -47,11 +47,14 @@ def get_distinct_values(column, uf=None):
     return result["valor"].dropna().astype(str).tolist()
 
 
-def build_filters(uf, municipio, area_min, area_max):
-    clauses, params = ["at_imovel >= @area_min", "at_imovel <= @area_max"], [
-        bigquery.ScalarQueryParameter("area_min", "FLOAT64", area_min),
-        bigquery.ScalarQueryParameter("area_max", "FLOAT64", area_max),
-    ]
+def build_filters(uf, municipio, extensao):
+    clauses, params = [], []
+    if extensao == "Propriedades com área ≥ 0,5 hectare":
+        clauses.append("at_imovel >= @area")
+        params.append(bigquery.ScalarQueryParameter("area", "FLOAT64", 0.5))
+    elif extensao == "Propriedades com área ≤ 2 hectares":
+        clauses.append("at_imovel <= @area")
+        params.append(bigquery.ScalarQueryParameter("area", "FLOAT64", 2.0))
     if uf != "Brasil":
         clauses.append("uf = @uf")
         params.append(bigquery.ScalarQueryParameter("uf", "STRING", uf))
@@ -68,17 +71,14 @@ with st.sidebar:
     )
     arrecadacao_col = ARRECADACOES[arrecadacao_label]
 
-    st.markdown("**Filtro 2 — Extensão da propriedade (hectares)**")
-    area_col1, area_col2 = st.columns(2)
-    area_min = area_col1.number_input(
-        "Mínimo", min_value=0.0, value=0.5, step=0.1, format="%.1f"
+    extensao = st.selectbox(
+        "Filtro 2 — Extensão da propriedade",
+        [
+            "Todas as propriedades",
+            "Propriedades com área ≥ 0,5 hectare",
+            "Propriedades com área ≤ 2 hectares",
+        ],
     )
-    area_max = area_col2.number_input(
-        "Máximo", min_value=0.0, value=2.0, step=0.1, format="%.1f"
-    )
-    if area_min > area_max:
-        st.error("A extensão mínima deve ser menor ou igual à máxima.")
-        st.stop()
 
     try:
         ufs = ["Brasil"] + get_distinct_values("uf")
@@ -91,7 +91,7 @@ with st.sidebar:
         st.error(f"Erro ao carregar opções de filtro do BigQuery: {exc}")
         st.stop()
 
-where_sql, filter_params = build_filters(uf, municipio, area_min, area_max)
+where_sql, filter_params = build_filters(uf, municipio, extensao)
 valor_label = "ITR GU fixo" if arrecadacao_col == "itr_gu_fixo" else "ITR GU calculado"
 
 # KPIs calculados no BigQuery.
