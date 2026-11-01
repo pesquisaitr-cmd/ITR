@@ -15,6 +15,14 @@ LOCATION = "southamerica-east1"
 TABLE_PATH = "`pesquisa-itr.dados_itr.itr_pronto`"
 PAGE_SIZE = 1000
 
+
+def format_br_number(value, decimals=2):
+    """Formata números com ponto de milhar e vírgula decimal."""
+    if pd.isna(value):
+        return "—"
+    return f"{float(value):,.{decimals}f}".replace(",", "X").replace(".", ",").replace("X", ".")
+
+
 ARRECADACOES = {
     "ITR GU fixo": "itr_gu_fixo",
     "ITR GU calculado": "itr_gu_calc",
@@ -135,14 +143,20 @@ try:
         labels={"grupo": group_label, "quantidade_imoveis": "Nº de imóveis"},
         text_auto=True,
     )
-    fig_count.update_layout(xaxis={"categoryorder": "total descending"})
+    fig_count.update_layout(
+        xaxis={"categoryorder": "total descending"}, separators=",."
+    )
+    fig_count.update_traces(texttemplate="%{y:,.0f}")
     fig_revenue = px.bar(
         top_revenue, x="grupo", y="arrecadacao",
         title=f"Top 10 {group_label} por {valor_label}",
         labels={"grupo": group_label, "arrecadacao": f"{valor_label} (R$)"},
         text_auto=",.2f",
     )
-    fig_revenue.update_layout(xaxis={"categoryorder": "total descending"})
+    fig_revenue.update_layout(
+        xaxis={"categoryorder": "total descending"}, separators=",."
+    )
+    fig_revenue.update_traces(texttemplate="%{y:,.2f}")
     col1, col2 = st.columns(2)
     col1.plotly_chart(fig_count, use_container_width=True)
     col2.plotly_chart(fig_revenue, use_container_width=True)
@@ -165,7 +179,7 @@ crosstab_sql = f"""SELECT
                 GROUP BY faixa_at, faixa_gu
                 ORDER BY faixa_at, faixa_gu"""
 
-def render_crosstab(frame, value_column, value_label, number_format):
+def render_crosstab(frame, value_column, value_label, decimals):
     if frame.empty:
         st.info("Não há dados para a combinação atual de filtros.")
         return
@@ -200,7 +214,10 @@ def render_crosstab(frame, value_column, value_label, number_format):
     total_row = matrix.sum(axis=0)
     total_row.name = "Total"
     matrix = pd.concat([matrix, total_row.to_frame().T])
-    st.dataframe(matrix, use_container_width=True)
+    display_matrix = matrix.apply(
+        lambda column: column.map(lambda value: format_br_number(value, decimals))
+    )
+    st.dataframe(display_matrix, use_container_width=True)
     if matrix.empty or matrix.shape[0] == 0 or matrix.shape[1] == 0:
         st.info("Não há valores para construir o mapa de calor.")
         return
@@ -209,8 +226,12 @@ def render_crosstab(frame, value_column, value_label, number_format):
         labels={"x": "Faixa de GU", "y": "Faixa de área (faixa_at)", "color": value_label},
         aspect="auto",
         color_continuous_scale="YlOrRd",
-        text_auto=number_format,
+        text_auto=False,
     )
+    heatmap_text = matrix.apply(
+        lambda column: column.map(lambda value: format_br_number(value, decimals))
+    )
+    heatmap.update_traces(text=heatmap_text.values, texttemplate="%{text}")
     heatmap.update_layout(title=f"Mapa de calor — {value_label}")
     st.plotly_chart(heatmap, use_container_width=True)
 
@@ -220,15 +241,15 @@ try:
         tab_count, tab_revenue = st.tabs(["Nº de imóveis", "Arrecadação"])
         with tab_count:
             render_crosstab(
-                crosstab_data, "quantidade_imoveis", "Nº de imóveis", ",d"
+                crosstab_data, "quantidade_imoveis", "Nº de imóveis", 0
             )
         with tab_revenue:
             render_crosstab(
-                crosstab_data, "arrecadacao", "Arrecadação (R$)", ",.2f"
+                crosstab_data, "arrecadacao", "Arrecadação (R$)", 2
             )
     else:
         render_crosstab(
-            crosstab_data, "quantidade_imoveis", "Nº de imóveis", ",d"
+            crosstab_data, "quantidade_imoveis", "Nº de imóveis", 0
         )
 except Exception as exc:
     st.error(f"Erro ao gerar a tabela cruzada: {exc}")
@@ -257,7 +278,14 @@ try:
     st.write(
         f"Registros correspondentes: **{total_rows:,}** · Página **{int(page)}** de **{page_count}**".replace(",", ".")
     )
-    st.dataframe(page_df, use_container_width=True, hide_index=True)
+    display_page_df = page_df.copy()
+    id_columns = {"codigo_do_municipio_ibge", "codigo_do_imovel"}
+    for column in display_page_df.select_dtypes(include="number").columns:
+        if column not in id_columns:
+            display_page_df[column] = display_page_df[column].map(
+                lambda value: format_br_number(value, 2)
+            )
+    st.dataframe(display_page_df, use_container_width=True, hide_index=True)
     st.download_button(
         "Baixar esta página em CSV",
         data=page_df.to_csv(index=False).encode("utf-8-sig"),
