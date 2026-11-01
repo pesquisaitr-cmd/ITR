@@ -264,7 +264,14 @@ total_rows = int(kpis["quantidade_imoveis"])
 page_count = max(1, (total_rows + PAGE_SIZE - 1) // PAGE_SIZE)
 page = st.number_input("Página", min_value=1, max_value=page_count, value=1, step=1)
 offset = (int(page) - 1) * PAGE_SIZE
-columns = "uf, codigo_do_municipio_ibge, municipio, codigo_do_imovel, denominacao, at_imovel, area_total, isencao, faixa_at, floresta, pastagem, silvicultura, lavouras, lavoura_aptid_o_boa, lavoura_aptid_o_regular, lavoura_aptid_o_restrita, faixa_gu, gu_fixo, gu_calc, aliquota_fixa, aliquota_calc, itr_gu_fixo, itr_gu_calc"
+columns = """uf AS `UF`,
+              codigo_do_municipio_ibge AS `Código_IBGE`,
+              municipio AS `Município`,
+              codigo_do_imovel AS `Código do Imóvel`,
+              denominacao AS `Denominação`,
+              at_imovel AS `Área do imóvel`,
+              itr_gu_fixo AS `Arrecadação GU Fixo`,
+              itr_gu_calc AS `Arrecadação GU Calculado`"""
 page_params = list(filter_params) + [
     bigquery.ScalarQueryParameter("page_size", "INT64", PAGE_SIZE),
     bigquery.ScalarQueryParameter("offset", "INT64", offset),
@@ -279,7 +286,7 @@ try:
         f"Registros correspondentes: **{total_rows:,}** · Página **{int(page)}** de **{page_count}**".replace(",", ".")
     )
     display_page_df = page_df.copy()
-    id_columns = {"codigo_do_municipio_ibge", "codigo_do_imovel"}
+    id_columns = {"Código_IBGE", "Código do Imóvel"}
     for column in display_page_df.select_dtypes(include="number").columns:
         if column not in id_columns:
             display_page_df[column] = display_page_df[column].map(
