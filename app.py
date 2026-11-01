@@ -1,5 +1,6 @@
 import streamlit as st
 import pandas as pd
+import re
 from google.cloud import bigquery
 import plotly.express as px
 
@@ -175,6 +176,30 @@ def render_crosstab(frame, value_column, value_label, number_format):
         aggfunc="sum",
         fill_value=0,
     )
+    def category_order(value):
+        label = str(value).strip()
+        normalized = label.casefold()
+        match = re.search(r"\d+(?:[.,]\d+)?", normalized)
+        numeric = float(match.group(0).replace(",", ".")) if match else float("inf")
+        if normalized.startswith(("até", "ate", "menos de", "abaixo de")):
+            return (0, numeric, normalized)
+        if normalized.startswith(("mais de", "acima de", "superior a")):
+            return (2, numeric, normalized)
+        if "não informado" in normalized or "nao informado" in normalized:
+            return (3, float("inf"), normalized)
+        return (1, numeric, normalized)
+
+    # Ordenação crescente pelas categorias numéricas embutidas nos rótulos.
+    matrix = matrix.reindex(
+        index=sorted(matrix.index, key=category_order),
+        columns=sorted(matrix.columns, key=category_order),
+    )
+    # Totais marginais; conservar a última linha e a última coluna para ambos
+    # os formatos de saída (tabela e mapa de calor).
+    matrix["Total"] = matrix.sum(axis=1)
+    total_row = matrix.sum(axis=0)
+    total_row.name = "Total"
+    matrix = pd.concat([matrix, total_row.to_frame().T])
     st.dataframe(matrix, use_container_width=True)
     if matrix.empty or matrix.shape[0] == 0 or matrix.shape[1] == 0:
         st.info("Não há valores para construir o mapa de calor.")
