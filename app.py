@@ -1,4 +1,5 @@
 import streamlit as st
+import pandas as pd
 from google.cloud import bigquery
 import plotly.express as px
 
@@ -146,6 +147,69 @@ try:
     col2.plotly_chart(fig_revenue, use_container_width=True)
 except Exception as exc:
     st.error(f"Erro ao gerar agregações: {exc}")
+
+# Tabela cruzada e mapas de calor, agregados no BigQuery segundo os filtros.
+st.markdown("---")
+st.subheader("Tabela cruzada — Extensão da propriedade × Faixa de GU")
+st.caption(
+    "Linhas: at_imovel (hectares). Colunas: faixa_gu. "
+    "O mapa de calor representa os valores da tabela cruzada."
+)
+crosstab_sql = f"""SELECT
+                    CAST(at_imovel AS STRING) AS at_imovel,
+                    COALESCE(CAST(faixa_gu AS STRING), 'Não informado') AS faixa_gu,
+                    COUNT(*) AS quantidade_imoveis,
+                    SUM(itr_gu_calc) AS arrecadacao
+                FROM {TABLE_PATH}{where_sql}
+                GROUP BY at_imovel, faixa_gu
+                ORDER BY SAFE_CAST(at_imovel AS FLOAT64), faixa_gu"""
+
+def render_crosstab(frame, value_column, value_label, number_format):
+    if frame.empty:
+        st.info("Não há dados para a combinação atual de filtros.")
+        return
+    matrix = frame.pivot_table(
+        index="at_imovel",
+        columns="faixa_gu",
+        values=value_column,
+        aggfunc="sum",
+        fill_value=0,
+    )
+    matrix = matrix.sort_index(
+        key=lambda idx: pd.to_numeric(idx, errors="coerce").fillna(float("inf"))
+    )
+    st.dataframe(matrix, use_container_width=True)
+    if matrix.empty or matrix.shape[0] == 0 or matrix.shape[1] == 0:
+        st.info("Não há valores para construir o mapa de calor.")
+        return
+    heatmap = px.imshow(
+        matrix,
+        labels={"x": "Faixa de GU", "y": "at_imovel (ha)", "color": value_label},
+        aspect="auto",
+        color_continuous_scale="YlOrRd",
+        text_auto=number_format,
+    )
+    heatmap.update_layout(title=f"Mapa de calor — {value_label}")
+    st.plotly_chart(heatmap, use_container_width=True)
+
+try:
+    crosstab_data = run_query(crosstab_sql, filter_params)
+    if arrecadacao_col == "itr_gu_calc":
+        tab_count, tab_revenue = st.tabs(["Nº de imóveis", "Arrecadação"])
+        with tab_count:
+            render_crosstab(
+                crosstab_data, "quantidade_imoveis", "Nº de imóveis", ",d"
+            )
+        with tab_revenue:
+            render_crosstab(
+                crosstab_data, "arrecadacao", "Arrecadação (R$)", ",.2f"
+            )
+    else:
+        render_crosstab(
+            crosstab_data, "quantidade_imoveis", "Nº de imóveis", ",d"
+        )
+except Exception as exc:
+    st.error(f"Erro ao gerar a tabela cruzada: {exc}")
 
 st.markdown("---")
 st.subheader("Tabela detalhada")
