@@ -152,31 +152,28 @@ except Exception as exc:
 st.markdown("---")
 st.subheader("Tabela cruzada — Extensão da propriedade × Faixa de GU")
 st.caption(
-    "Linhas: at_imovel (hectares). Colunas: faixa_gu. "
+    "Linhas: faixa_at (categoria de extensão). Colunas: faixa_gu. "
     "O mapa de calor representa os valores da tabela cruzada."
 )
 crosstab_sql = f"""SELECT
-                    CAST(at_imovel AS STRING) AS at_imovel,
+                    COALESCE(CAST(faixa_at AS STRING), 'Não informado') AS faixa_at,
                     COALESCE(CAST(faixa_gu AS STRING), 'Não informado') AS faixa_gu,
                     COUNT(*) AS quantidade_imoveis,
                     SUM(itr_gu_calc) AS arrecadacao
                 FROM {TABLE_PATH}{where_sql}
-                GROUP BY at_imovel, faixa_gu
-                ORDER BY SAFE_CAST(at_imovel AS FLOAT64), faixa_gu"""
+                GROUP BY faixa_at, faixa_gu
+                ORDER BY faixa_at, faixa_gu"""
 
 def render_crosstab(frame, value_column, value_label, number_format):
     if frame.empty:
         st.info("Não há dados para a combinação atual de filtros.")
         return
     matrix = frame.pivot_table(
-        index="at_imovel",
+        index="faixa_at",
         columns="faixa_gu",
         values=value_column,
         aggfunc="sum",
         fill_value=0,
-    )
-    matrix = matrix.sort_index(
-        key=lambda idx: pd.to_numeric(idx, errors="coerce").fillna(float("inf"))
     )
     st.dataframe(matrix, use_container_width=True)
     if matrix.empty or matrix.shape[0] == 0 or matrix.shape[1] == 0:
@@ -184,7 +181,7 @@ def render_crosstab(frame, value_column, value_label, number_format):
         return
     heatmap = px.imshow(
         matrix,
-        labels={"x": "Faixa de GU", "y": "at_imovel (ha)", "color": value_label},
+        labels={"x": "Faixa de GU", "y": "Faixa de área (faixa_at)", "color": value_label},
         aspect="auto",
         color_continuous_scale="YlOrRd",
         text_auto=number_format,
