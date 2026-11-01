@@ -89,7 +89,7 @@ with st.sidebar:
     arrecadacao_col = ARRECADACOES[arrecadacao_label]
 
     categoria = st.selectbox(
-        "Filtro 2 — Categorias",
+        "Filtro 2 — Isenção",
         ["Todos", "Isentos", "Pagantes"],
     )
 
