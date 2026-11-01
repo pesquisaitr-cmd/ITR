@@ -57,8 +57,14 @@ def get_distinct_values(column, uf=None):
     return result["valor"].dropna().astype(str).tolist()
 
 
-def build_filters(uf, municipio, extensao):
+def build_filters(uf, municipio, extensao, categoria):
     clauses, params = [], []
+    if categoria == "Isentos":
+        clauses.append("isencao = @isencao")
+        params.append(bigquery.ScalarQueryParameter("isencao", "INT64", 1))
+    elif categoria == "Pagantes":
+        clauses.append("isencao = @isencao")
+        params.append(bigquery.ScalarQueryParameter("isencao", "INT64", 0))
     if extensao == "Propriedades com área ≥ 0,5 hectare":
         clauses.append("at_imovel >= @area")
         params.append(bigquery.ScalarQueryParameter("area", "FLOAT64", 0.5))
@@ -82,8 +88,13 @@ with st.sidebar:
     )
     arrecadacao_col = ARRECADACOES[arrecadacao_label]
 
+    categoria = st.selectbox(
+        "Filtro 2 — Categorias",
+        ["Todos", "Isentos", "Pagantes"],
+    )
+
     extensao = st.selectbox(
-        "Filtro 2 — Extensão da propriedade",
+        "Filtro 3 — Extensão da propriedade",
         [
             "Todas as propriedades",
             "Propriedades com área ≥ 0,5 hectare",
@@ -93,16 +104,16 @@ with st.sidebar:
 
     try:
         ufs = ["Brasil"] + get_distinct_values("uf")
-        uf = st.selectbox("Filtro 3 — UF", ufs)
+        uf = st.selectbox("Filtro 4 — UF", ufs)
         municipios = ["Todos"]
         if uf != "Brasil":
             municipios += get_distinct_values("municipio", uf)
-        municipio = st.selectbox("Filtro 4 — Município", municipios)
+        municipio = st.selectbox("Filtro 5 — Município", municipios)
     except Exception as exc:
         st.error(f"Erro ao carregar opções de filtro do BigQuery: {exc}")
         st.stop()
 
-where_sql, filter_params = build_filters(uf, municipio, extensao)
+where_sql, filter_params = build_filters(uf, municipio, extensao, categoria)
 valor_label = "ITR GU fixo" if arrecadacao_col == "itr_gu_fixo" else "ITR GU calculado"
 
 # KPIs calculados no BigQuery.
@@ -258,7 +269,7 @@ st.markdown("---")
 st.subheader("Tabela detalhada")
 st.caption(
     "Os resultados são consultados sob demanda e exibidos em páginas de 1.000 registros. "
-    "Os quatro filtros são aplicados no BigQuery."
+    "Os cinco filtros são aplicados no BigQuery."
 )
 total_rows = int(kpis["quantidade_imoveis"])
 page_count = max(1, (total_rows + PAGE_SIZE - 1) // PAGE_SIZE)
